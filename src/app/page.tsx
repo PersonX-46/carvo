@@ -5,15 +5,17 @@ import Features from "../components/Features";
 import Services from "@/components/Services";
 import BookingSection from "@/components/BookingSection";
 import Footer from "@/components/Footer";
+import AIChat from "@/components/AiChat";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-white dark:bg-gray-900">
       <NavBar />
-      <HeroSection />
+      <AIChat />
+      {/* <HeroSection />
       <Features />
       <Services />
-      <Footer />
+      <Footer /> */}
     </div>
   );
 }

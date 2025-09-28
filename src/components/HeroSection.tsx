@@ -85,7 +85,7 @@ const HeroSection: React.FC = () => {
               href="tel:+15551234567"
               className="border-2 border-teal-500/30 text-teal-300 hover:border-teal-400 hover:text-teal-200 px-8 py-4 rounded-xl font-semibold text-lg transition-all flex items-center gap-2 backdrop-blur-sm hover:bg-teal-500/10"
             >
-              <span>📞</span> Call Now: (555) BMW-CARE
+              <span>🤖</span> Chat With Our AI
             </Link>
           </div>
 
