@@ -31,8 +31,8 @@ export default function NavBar(){
     <>
       <nav className={`fixed top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-500 ${
         isScrolled 
-          ? 'w-11/12 max-w-4xl scale-95' 
-          : 'w-10/12 max-w-6xl'
+          ? 'w-12/12 max-w-4xl scale-95' 
+          : 'w-11/12 max-w-6xl'
       }`}>
         {/* Outer glow effect */}
         <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r from-teal-400/20 to-blue-400/20 blur-xl transition-opacity duration-500 ${
@@ -71,7 +71,7 @@ export default function NavBar(){
 
               {/* Desktop Menu with sci-fi tabs */}
               <div className="hidden md:block">
-                <div className="flex items-center space-x-1 bg-gray-800/50 rounded-xl p-1 border border-teal-400/20">
+                <div className="flex items-center space-x-1  rounded-xl p-1 ml-6 mr-6">
                   {['home', 'services', 'workshops', 'about', 'contact'].map((tab) => (
                     <Link 
                       key={tab}
@@ -123,7 +123,7 @@ export default function NavBar(){
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-teal-400 to-blue-500 rounded-xl blur-md group-hover:blur-lg transition-all duration-300 opacity-70"></div>
                   <div className="relative z-10 bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 text-white px-6 py-2 rounded-xl font-medium transition-all transform group-hover:scale-105 shadow-lg border border-teal-400/30">
-                    Book Service
+                    Book
                   </div>
                 </Link>
 
@@ -146,7 +146,7 @@ export default function NavBar(){
 
             {/* Mobile Menu with sci-fi style */}
             {isMenuOpen && (
-              <div className="md:hidden mt-4 bg-gray-800/80 backdrop-blur-xl rounded-xl border border-teal-400/20 p-4 animate-slideDown">
+              <div className="md:hidden mt-4 bg-gray-800/80 backdrop-blur-xl rounded-xl  p-4 animate-slideDown">
                 <div className="space-y-2">
                   {['home', 'services', 'workshops', 'about', 'contact'].map((tab) => (
                     <Link 

@@ -41,52 +41,66 @@ const AIChat: React.FC = () => {
     gradient: Math.random() > 0.5 ? 'from-teal-400/15 to-blue-500/15' : 'from-blue-400/15 to-teal-500/15'
   }));
 
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || isLoading) return;
+    const handleSendMessage = async () => {
+        if (!inputMessage.trim() || isLoading) return;
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputMessage,
-      isUser: true,
-      timestamp: new Date()
-    };
+        const userMessage: Message = {
+            id: Date.now().toString(),
+            content: inputMessage,
+            isUser: true,
+            timestamp: new Date()
+        };
 
-    setMessages(prev => [...prev, userMessage]);
-    setInputMessage('');
-    setIsLoading(true);
+        setMessages(prev => [...prev, userMessage]);
+        setInputMessage('');
+        setIsLoading(true);
 
-    // Simulate AI response
         try {
-    const res = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMessage.content }),
-    });
+            const res = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ message: userMessage.content }),
+            });
 
-    const data = await res.json();
+            if (!res.body) throw new Error("No response body");
 
-    const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        content: data.answer || "Sorry, I couldn’t process that.",
-        isUser: false,
-        timestamp: new Date()
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let aiMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            content: "",
+            isUser: false,
+            timestamp: new Date()
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+
+            while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+
+            // Append chunk gradually
+            aiMessage = {
+                ...aiMessage,
+                content: aiMessage.content + chunk
+            };
+            setMessages(prev =>
+                prev.map(m => (m.id === aiMessage.id ? aiMessage : m))
+            );
+            }
+        } catch (err) {
+            const errorMessage: Message = {
+            id: (Date.now() + 2).toString(),
+            content: "⚠️ Failed to connect to AI.",
+            isUser: false,
+            timestamp: new Date()
+            };
+            setMessages(prev => [...prev, errorMessage]);
+        } finally {
+            setIsLoading(false);
+        }
     };
-
-    setMessages(prev => [...prev, aiMessage]);
-    } catch (err) {
-    const errorMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        content: "⚠️ Failed to connect to AI.",
-        isUser: false,
-        timestamp: new Date()
-    };
-    setMessages(prev => [...prev, errorMessage]);
-    } finally {
-    setIsLoading(false);
-    }
-
-  };
-
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
