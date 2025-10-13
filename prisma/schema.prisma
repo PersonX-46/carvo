@@ -1,15 +1,127 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// schema.prisma
 
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "postgresql" // or "mysql"
   url      = env("DATABASE_URL")
+}
+
+model Pelanggan {
+  id              Int        @id @default(autoincrement())
+  nama            String
+  emel            String     @unique
+  kataLaluan      String
+  noTelefon       String
+  alamat          String?
+  kenderaan       Kenderaan[]
+  tempahan        Tempahan[]
+  laporanServis   Laporan[]
+  maklumBalas     MaklumBalas[]
+  createdAt       DateTime   @default(now())
+}
+
+model Pekerja {
+  id              Int        @id @default(autoincrement())
+  nama            String
+  emel            String     @unique
+  kataLaluan      String
+  jawatan         String
+  noTelefon       String?
+  servis          Servis[]
+  laporanServis   Laporan[]
+  createdAt       DateTime   @default(now())
+}
+
+model Pengurus {
+  id              Int        @id @default(autoincrement())
+  nama            String
+  emel            String     @unique
+  kataLaluan      String
+  noTelefon       String?
+  laporan         Laporan[]
+  kewangan        Kewangan[]
+  createdAt       DateTime   @default(now())
+}
+
+model Servis {
+  id              Int        @id @default(autoincrement())
+  tempahanId      Int
+  pekerjaId       Int?
+  statusServis    String     @default("Pending")
+  notaPembaikan   String?
+  kosServis       Float?
+  alatGanti       String?
+  tarikhSelesai   DateTime?
+  tempahan        Tempahan   @relation(fields: [tempahanId], references: [id])
+  pekerja         Pekerja?   @relation(fields: [pekerjaId], references: [id])
+}
+
+
+model Kenderaan {
+  id              Int        @id @default(autoincrement())
+  pelangganId     Int
+  model           String
+  nomborPendaftaran String
+  tahun           Int?
+  jenis            String?
+  pelanggan        Pelanggan @relation(fields: [pelangganId], references: [id])
+  servis           Servis
+}
+
+model Tempahan {
+  id              Int        @id @default(autoincrement())
+  pelangganId     Int
+  kenderaanId     Int
+  tarikhTempahan  DateTime
+  status          String     @default("Pending")
+  masalahDilaporkan String?
+  anggaranKos     Float?
+  disahkan         Boolean   @default(false)
+  pelanggan        Pelanggan @relation(fields: [pelangganId], references: [id])
+  kenderaan        Kenderaan @relation(fields: [kenderaanId], references: [id])
+  servis           Servis?
+}
+
+model Stok {
+  id              Int        @id @default(autoincrement())
+  namaItem        String
+  kategori        String?
+  kuantiti        Int        @default(0)
+  hargaUnit       Float?
+  tarikhKemasKini DateTime   @default(now())
+}
+
+model Laporan {
+  id              Int        @id @default(autoincrement())
+  jenis           String
+  tarikh          DateTime   @default(now())
+  butiran         String?
+  pelangganId     Int?
+  pekerjaId       Int?
+  pengurusId      Int?
+  pelanggan       Pelanggan? @relation(fields: [pelangganId], references: [id])
+  pekerja         Pekerja?   @relation(fields: [pekerjaId], references: [id])
+  pengurus        Pengurus?  @relation(fields: [pengurusId], references: [id])
+}
+
+model Kewangan {
+  id              Int        @id @default(autoincrement())
+  pengurusId      Int
+  jumlah          Float
+  kategori        String
+  tarikh          DateTime   @default(now())
+  nota            String?
+  pengurus        Pengurus   @relation(fields: [pengurusId], references: [id])
+}
+
+model MaklumBalas {
+  id              Int        @id @default(autoincrement())
+  pelangganId     Int
+  rating          Int
+  komen           String?
+  tarikh          DateTime   @default(now())
+  pelanggan       Pelanggan  @relation(fields: [pelangganId], references: [id])
 }

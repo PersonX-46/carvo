@@ -8,7 +8,7 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "gemma:2b",
+        model: "gemma:7b",
         prompt: message,
         stream: true, // 🚀 stream tokens
       }),
