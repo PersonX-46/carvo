@@ -9,119 +9,129 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Pelanggan {
+// schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Customer {
   id              Int        @id @default(autoincrement())
-  nama            String
-  emel            String     @unique
-  kataLaluan      String
-  noTelefon       String
-  alamat          String?
-  kenderaan       Kenderaan[]
-  tempahan        Tempahan[]
-  laporanServis   Laporan[]
-  maklumBalas     MaklumBalas[]
+  name            String
+  email           String     @unique
+  password        String
+  phone           String
+  address         String?
+  vehicles        Vehicle[]
+  bookings        Booking[]
+  serviceReports  Report[]
+  feedback        Feedback[]
   createdAt       DateTime   @default(now())
 }
 
-model Pekerja {
+model Worker {
   id              Int        @id @default(autoincrement())
-  nama            String
-  emel            String     @unique
-  kataLaluan      String
-  jawatan         String
-  noTelefon       String?
-  servis          Servis[]
-  laporanServis   Laporan[]
+  name            String
+  email           String     @unique
+  password        String
+  position        String
+  phone           String?
+  services        Service[]
+  serviceReports  Report[]
   createdAt       DateTime   @default(now())
 }
 
-model Pengurus {
+model Manager {
   id              Int        @id @default(autoincrement())
-  nama            String
-  emel            String     @unique
-  kataLaluan      String
-  noTelefon       String?
-  laporan         Laporan[]
-  kewangan        Kewangan[]
+  name            String
+  email           String     @unique
+  password        String
+  phone           String?
+  reports         Report[]
+  finances        Finance[]
   createdAt       DateTime   @default(now())
 }
 
-model Servis {
+model Service {
   id              Int        @id @default(autoincrement())
-  tempahanId      Int
-  pekerjaId       Int?
-  statusServis    String     @default("Pending")
-  notaPembaikan   String?
-  kosServis       Float?
-  alatGanti       String?
-  tarikhSelesai   DateTime?
-  tempahan        Tempahan   @relation(fields: [tempahanId], references: [id])
-  pekerja         Pekerja?   @relation(fields: [pekerjaId], references: [id])
+  bookingId       Int
+  workerId        Int?
+  serviceStatus   String     @default("Pending")
+  repairNotes     String?
+  serviceCost     Float?
+  spareParts      String?
+  completionDate  DateTime?
+  booking         Booking    @relation(fields: [bookingId], references: [id])
+  worker          Worker?    @relation(fields: [workerId], references: [id])
 }
 
-
-model Kenderaan {
+model Vehicle {
   id              Int        @id @default(autoincrement())
-  pelangganId     Int
+  customerId      Int
   model           String
-  nomborPendaftaran String
-  tahun           Int?
-  jenis            String?
-  pelanggan        Pelanggan @relation(fields: [pelangganId], references: [id])
-  servis           Servis
+  registrationNumber String
+  year            Int?
+  type            String?
+  customer        Customer   @relation(fields: [customerId], references: [id])
+  service         Service
 }
 
-model Tempahan {
+model Booking {
   id              Int        @id @default(autoincrement())
-  pelangganId     Int
-  kenderaanId     Int
-  tarikhTempahan  DateTime
+  customerId      Int
+  vehicleId       Int
+  bookingDate     DateTime
   status          String     @default("Pending")
-  masalahDilaporkan String?
-  anggaranKos     Float?
-  disahkan         Boolean   @default(false)
-  pelanggan        Pelanggan @relation(fields: [pelangganId], references: [id])
-  kenderaan        Kenderaan @relation(fields: [kenderaanId], references: [id])
-  servis           Servis?
+  reportedIssue   String?
+  estimatedCost   Float?
+  confirmed       Boolean    @default(false)
+  customer        Customer   @relation(fields: [customerId], references: [id])
+  vehicle         Vehicle    @relation(fields: [vehicleId], references: [id])
+  service         Service?
 }
 
-model Stok {
+model Stock {
   id              Int        @id @default(autoincrement())
-  namaItem        String
-  kategori        String?
-  kuantiti        Int        @default(0)
-  hargaUnit       Float?
-  tarikhKemasKini DateTime   @default(now())
+  itemName        String
+  category        String?
+  quantity        Int        @default(0)
+  unitPrice       Float?
+  updatedAt       DateTime   @default(now())
 }
 
-model Laporan {
+model Report {
   id              Int        @id @default(autoincrement())
-  jenis           String
-  tarikh          DateTime   @default(now())
-  butiran         String?
-  pelangganId     Int?
-  pekerjaId       Int?
-  pengurusId      Int?
-  pelanggan       Pelanggan? @relation(fields: [pelangganId], references: [id])
-  pekerja         Pekerja?   @relation(fields: [pekerjaId], references: [id])
-  pengurus        Pengurus?  @relation(fields: [pengurusId], references: [id])
+  type            String
+  date            DateTime   @default(now())
+  details         String?
+  customerId      Int?
+  workerId        Int?
+  managerId       Int?
+  customer        Customer?  @relation(fields: [customerId], references: [id])
+  worker          Worker?    @relation(fields: [workerId], references: [id])
+  manager         Manager?   @relation(fields: [managerId], references: [id])
 }
 
-model Kewangan {
+model Finance {
   id              Int        @id @default(autoincrement())
-  pengurusId      Int
-  jumlah          Float
-  kategori        String
-  tarikh          DateTime   @default(now())
-  nota            String?
-  pengurus        Pengurus   @relation(fields: [pengurusId], references: [id])
+  managerId       Int
+  amount          Float
+  category        String
+  date            DateTime   @default(now())
+  notes           String?
+  manager         Manager    @relation(fields: [managerId], references: [id])
 }
 
-model MaklumBalas {
+model Feedback {
   id              Int        @id @default(autoincrement())
-  pelangganId     Int
+  customerId      Int
   rating          Int
-  komen           String?
-  tarikh          DateTime   @default(now())
-  pelanggan       Pelanggan  @relation(fields: [pelangganId], references: [id])
+  comment         String?
+  date            DateTime   @default(now())
+  customer        Customer   @relation(fields: [customerId], references: [id])
 }

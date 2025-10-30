@@ -5,6 +5,7 @@ import Features from "../components/Features";
 import Services from "@/components/Services";
 import BookingSection from "@/components/BookingSection";
 import Footer from "@/components/Footer";
+import Login from "@/components/Login";
 
 export default function Home() {
   return (
