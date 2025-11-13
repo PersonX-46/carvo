@@ -1,16 +1,3 @@
-// schema.prisma
-
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql" // or "mysql"
-  url      = env("DATABASE_URL")
-}
-
-// schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -27,6 +14,7 @@ model Customer {
   password        String
   phone           String
   address         String?
+  joinDate        DateTime   @default(now())
   vehicles        Vehicle[]
   bookings        Booking[]
   serviceReports  Report[]
@@ -34,19 +22,7 @@ model Customer {
   createdAt       DateTime   @default(now())
 }
 
-model Worker {
-  id              Int        @id @default(autoincrement())
-  name            String
-  email           String     @unique
-  password        String
-  position        String
-  phone           String?
-  services        Service[]
-  serviceReports  Report[]
-  createdAt       DateTime   @default(now())
-}
-
-model Manager {
+model Admin {
   id              Int        @id @default(autoincrement())
   name            String
   email           String     @unique
@@ -57,42 +33,74 @@ model Manager {
   createdAt       DateTime   @default(now())
 }
 
+model Worker {
+  id              Int        @id @default(autoincrement())
+  name            String
+  email           String     @unique
+  password        String
+  position        String
+  phone           String?
+  status          String     @default("active") // active, inactive, on_leave
+  specialization  String?    // JSON string or comma-separated values
+  salary          Float?
+  hireDate        DateTime   @default(now())
+  totalServices   Int        @default(0)
+  currentWorkload Int        @default(0)
+  rating          Float?     @default(0.0)
+  services        Service[]
+  serviceReports  Report[]
+  createdAt       DateTime   @default(now())
+}
+
 model Service {
   id              Int        @id @default(autoincrement())
-  bookingId       Int
+  bookingId       Int        @unique
   workerId        Int?
   serviceStatus   String     @default("Pending")
   repairNotes     String?
   serviceCost     Float?
   spareParts      String?
   completionDate  DateTime?
+  duration        Float?     @default(1.0) // Duration in hours
   booking         Booking    @relation(fields: [bookingId], references: [id])
   worker          Worker?    @relation(fields: [workerId], references: [id])
+  createdAt       DateTime   @default(now())
 }
 
 model Vehicle {
-  id              Int        @id @default(autoincrement())
-  customerId      Int
-  model           String
-  registrationNumber String
-  year            Int?
-  type            String?
-  customer        Customer   @relation(fields: [customerId], references: [id])
-  service         Service
+  id                  Int        @id @default(autoincrement())
+  customerId          Int
+  model               String
+  registrationNumber  String     @unique
+  year                Int?
+  type                String?
+  color               String?
+  engineCapacity      String?
+  mileage             Int?
+  insuranceExpiry     DateTime?
+  roadTaxExpiry       DateTime?
+  lastService         DateTime?
+  nextService         DateTime?
+  customer            Customer   @relation(fields: [customerId], references: [id])
+  bookings            Booking[]
+  createdAt           DateTime   @default(now())
 }
 
 model Booking {
   id              Int        @id @default(autoincrement())
   customerId      Int
   vehicleId       Int
+  serviceId       Int?       @unique
   bookingDate     DateTime
-  status          String     @default("Pending")
+  status          String     @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled
   reportedIssue   String?
   estimatedCost   Float?
   confirmed       Boolean    @default(false)
+  duration        Float?     @default(1.0) // Duration in hours
   customer        Customer   @relation(fields: [customerId], references: [id])
   vehicle         Vehicle    @relation(fields: [vehicleId], references: [id])
-  service         Service?
+  service         Service?   @relation(fields: [serviceId], references: [id])
+  createdAt       DateTime   @default(now())
 }
 
 model Stock {
@@ -101,30 +109,56 @@ model Stock {
   category        String?
   quantity        Int        @default(0)
   unitPrice       Float?
+  minStockLevel   Int        @default(5)
+  supplier        String?
+  supplierContact String?
+  location        String?
+  notes           String?
+  lastRestocked   DateTime?
   updatedAt       DateTime   @default(now())
+}
+
+model StockMovement {
+  id              Int        @id @default(autoincrement())
+  stockItemId     Int
+  type            String     // 'in' or 'out'
+  quantity        Int
+  reason          String
+  date            DateTime   @default(now())
+  performedBy     String
+  reference       String?
+  stockItem       Stock      @relation(fields: [stockItemId], references: [id])
+  createdAt       DateTime   @default(now())
 }
 
 model Report {
   id              Int        @id @default(autoincrement())
-  type            String
-  date            DateTime   @default(now())
-  details         String?
+  type            String     // financial, service, inventory, customer, worker
+  title           String
+  description     String?
+  dateRange       String?
+  generatedBy     String
+  status          String     @default("completed") // completed, generating, failed
+  downloadUrl     String?
+  data            String?    // JSON string for report data
   customerId      Int?
   workerId        Int?
-  managerId       Int?
+  adminId         Int?
   customer        Customer?  @relation(fields: [customerId], references: [id])
   worker          Worker?    @relation(fields: [workerId], references: [id])
-  manager         Manager?   @relation(fields: [managerId], references: [id])
+  admin           Admin?     @relation(fields: [adminId], references: [id])
+  createdAt       DateTime   @default(now())
 }
 
 model Finance {
   id              Int        @id @default(autoincrement())
-  managerId       Int
+  adminId         Int
   amount          Float
   category        String
   date            DateTime   @default(now())
   notes           String?
-  manager         Manager    @relation(fields: [managerId], references: [id])
+  admin           Admin      @relation(fields: [adminId], references: [id])
+  createdAt       DateTime   @default(now())
 }
 
 model Feedback {
@@ -134,4 +168,5 @@ model Feedback {
   comment         String?
   date            DateTime   @default(now())
   customer        Customer   @relation(fields: [customerId], references: [id])
+  createdAt       DateTime   @default(now())
 }

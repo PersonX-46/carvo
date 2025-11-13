@@ -1,158 +1,170 @@
-'use client'
+'use client';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
-interface Booking {
+interface ServiceBooking {
   id: number;
-  customerName: string;
-  customerPhone: string;
-  vehicleModel: string;
-  registrationNumber: string;
-  bookingDate: string; // Format: "YYYY-MM-DD HH:MM"
-  serviceType: string;
+  vehicleId: number;
+  bookingDate: string;
   status: 'Pending' | 'Confirmed' | 'In Progress' | 'Completed' | 'Cancelled';
-  estimatedCost: number;
   reportedIssue: string;
+  estimatedCost: number;
+  serviceStatus?: string;
+  completionDate?: string;
   assignedWorker?: string;
-  duration: number; // Duration in hours
+  duration: number;
+  serviceType: string;
+}
+
+interface CustomerVehicle {
+  id: number;
+  model: string;
+  registrationNumber: string;
+  year: number;
+  type: string;
 }
 
 interface TimeSlot {
   time: string;
   hour: number;
   minute: number;
-  bookings: Booking[];
+  bookings: ServiceBooking[];
 }
 
-const BookingCalendar: React.FC = () => {
+const BookingManagement: React.FC = () => {
+  const [bookings, setBookings] = useState<ServiceBooking[]>([]);
+  const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
+  const [selectedBooking, setSelectedBooking] = useState<ServiceBooking | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [bookings, setBookings] = useState<Booking[]>([]);
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [currentWeek, setCurrentWeek] = useState(0);
 
-  // Generate comprehensive sample bookings data with time slots
+  // Simulated data fetch
   useEffect(() => {
-    const generateSampleBookings = (): Booking[] => {
-      const sampleBookings: Booking[] = [];
-      const services = [
-        'Regular Maintenance', 'Brake Service', 'AC Service', 'Tire Rotation', 
-        'Full Service', 'Engine Diagnostic', 'Transmission Service', 'Battery Replacement',
-        'Oil Change', 'Wheel Alignment', 'Suspension Repair', 'Electrical Diagnostics'
-      ];
+    const fetchData = async () => {
+      setIsLoading(true);
       
-      const workers = ['Ali bin Ahmad', 'Muthu Kumar', 'Chen Wei', 'Siti Fatimah', 'Rajesh Kumar'];
-      const statuses: Array<Booking['status']> = ['Pending', 'Confirmed', 'In Progress', 'Completed'];
-      
-      // Generate bookings for the next 30 days
-      for (let i = 0; i < 60; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() + i);
-        
-        // Generate 0-4 bookings per day
-        const bookingsPerDay = Math.floor(Math.random() * 5);
-        
-        for (let j = 0; j < bookingsPerDay; j++) {
-          const hour = 8 + Math.floor(Math.random() * 9); // 8 AM to 5 PM
-          const minute = Math.random() > 0.5 ? 0 : 30; // :00 or :30
-          
-          const bookingDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-          
-          sampleBookings.push({
-            id: sampleBookings.length + 1,
-            customerName: `Customer ${sampleBookings.length + 1}`,
-            customerPhone: `+60 1${Math.floor(Math.random() * 9)}-${Math.floor(Math.random() * 900 + 100)} ${Math.floor(Math.random() * 9000 + 1000)}`,
-            vehicleModel: ['Toyota Vios', 'Honda City', 'Proton Saga', 'Perodua Myvi', 'Mazda CX-5', 'Nissan Almera', 'Hyundai Tucson', 'BMW 3 Series'][Math.floor(Math.random() * 8)],
-            registrationNumber: `${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${String.fromCharCode(65 + Math.floor(Math.random() * 26))}${Math.floor(Math.random() * 9000 + 1000)}`,
-            bookingDate,
-            serviceType: services[Math.floor(Math.random() * services.length)],
-            status: statuses[Math.floor(Math.random() * statuses.length)],
-            estimatedCost: Math.floor(Math.random() * 500) + 50,
-            reportedIssue: 'Regular maintenance and inspection',
-            assignedWorker: Math.random() > 0.3 ? workers[Math.floor(Math.random() * workers.length)] : undefined,
-            duration: [1, 1.5, 2, 2.5, 3][Math.floor(Math.random() * 5)]
-          });
-        }
-      }
-      
-      // Add some specific bookings for demonstration
-      const specificBookings: Booking[] = [
-        {
-          id: 1001,
-          customerName: "Ahmad bin Ismail",
-          customerPhone: "+60 12-345 6789",
-          vehicleModel: "Toyota Vios",
-          registrationNumber: "ABC1234",
-          bookingDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')} 09:00`,
-          serviceType: "Regular Maintenance",
-          status: "In Progress",
-          estimatedCost: 120,
-          reportedIssue: "Oil change and general checkup",
-          assignedWorker: "Ali bin Ahmad",
-          duration: 1.5
-        },
-        {
-          id: 1002,
-          customerName: "Siti Nurhaliza",
-          customerPhone: "+60 13-456 7890",
-          vehicleModel: "Honda City",
-          registrationNumber: "XYZ5678",
-          bookingDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')} 10:30`,
-          serviceType: "Brake Service",
-          status: "Confirmed",
-          estimatedCost: 250,
-          reportedIssue: "Brake pads replacement",
-          assignedWorker: "Muthu Kumar",
-          duration: 2
-        },
-        {
-          id: 1003,
-          customerName: "Raj Kumar",
-          customerPhone: "+60 14-567 8901",
-          vehicleModel: "Proton Saga",
-          registrationNumber: "DEF9012",
-          bookingDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate() + 1).padStart(2, '0')} 14:00`,
-          serviceType: "AC Service",
-          status: "Pending",
-          estimatedCost: 180,
-          reportedIssue: "AC not cooling properly",
-          duration: 2.5
-        },
-        {
-          id: 1004,
-          customerName: "Mei Ling",
-          customerPhone: "+60 16-789 0123",
-          vehicleModel: "Perodua Myvi",
-          registrationNumber: "GHI3456",
-          bookingDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate() + 2).padStart(2, '0')} 11:00`,
-          serviceType: "Tire Rotation",
-          status: "Completed",
-          estimatedCost: 40,
-          reportedIssue: "Regular tire maintenance",
-          assignedWorker: "Ali bin Ahmad",
-          duration: 1
-        },
-        {
-          id: 1005,
-          customerName: "John Lim",
-          customerPhone: "+60 17-890 1234",
-          vehicleModel: "Mazda CX-5",
-          registrationNumber: "JKL7890",
-          bookingDate: `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate() + 3).padStart(2, '0')} 15:30`,
-          serviceType: "Full Service",
-          status: "Confirmed",
-          estimatedCost: 350,
-          reportedIssue: "Complete vehicle inspection",
-          assignedWorker: "Muthu Kumar",
-          duration: 3
-        }
-      ];
-      
-      return [...specificBookings, ...sampleBookings];
+      // Simulate API call
+      setTimeout(() => {
+        const mockVehicles: CustomerVehicle[] = [
+          {
+            id: 1,
+            model: 'Toyota Vios',
+            registrationNumber: 'ABC1234',
+            year: 2020,
+            type: 'Sedan'
+          },
+          {
+            id: 2,
+            model: 'Honda City',
+            registrationNumber: 'XYZ5678',
+            year: 2019,
+            type: 'Sedan'
+          },
+          {
+            id: 3,
+            model: 'Proton Saga',
+            registrationNumber: 'DEF9012',
+            year: 2021,
+            type: 'Sedan'
+          }
+        ];
+
+        const mockBookings: ServiceBooking[] = [
+          {
+            id: 1,
+            vehicleId: 1,
+            bookingDate: '2024-01-15 09:00',
+            status: 'In Progress',
+            reportedIssue: 'Regular maintenance and oil change',
+            estimatedCost: 120,
+            serviceStatus: 'Diagnostics Complete',
+            assignedWorker: 'Ali bin Ahmad',
+            duration: 1.5,
+            serviceType: 'Regular Maintenance'
+          },
+          {
+            id: 2,
+            vehicleId: 2,
+            bookingDate: '2024-01-20 14:00',
+            status: 'Confirmed',
+            reportedIssue: 'Brake system inspection',
+            estimatedCost: 80,
+            serviceStatus: 'Scheduled',
+            duration: 2,
+            serviceType: 'Brake Service'
+          },
+          {
+            id: 3,
+            vehicleId: 1,
+            bookingDate: '2024-01-25 11:00',
+            status: 'Pending',
+            reportedIssue: 'AC not cooling properly',
+            estimatedCost: 180,
+            duration: 2.5,
+            serviceType: 'AC Service'
+          },
+          {
+            id: 4,
+            vehicleId: 3,
+            bookingDate: '2024-01-10 10:30',
+            status: 'Completed',
+            reportedIssue: 'Tire rotation and general checkup',
+            estimatedCost: 40,
+            serviceStatus: 'Service Completed',
+            assignedWorker: 'Muthu Kumar',
+            completionDate: '2024-01-10',
+            duration: 1,
+            serviceType: 'Tire Rotation'
+          },
+          {
+            id: 5,
+            vehicleId: 2,
+            bookingDate: '2024-02-01 08:00',
+            status: 'Confirmed',
+            reportedIssue: 'Full vehicle service',
+            estimatedCost: 350,
+            serviceStatus: 'Parts Ordered',
+            assignedWorker: 'Chen Wei',
+            duration: 3,
+            serviceType: 'Full Service'
+          },
+          {
+            id: 6,
+            vehicleId: 1,
+            bookingDate: '2024-01-18 13:00',
+            status: 'Completed',
+            reportedIssue: 'Wheel alignment',
+            estimatedCost: 60,
+            serviceStatus: 'Service Completed',
+            assignedWorker: 'Ali bin Ahmad',
+            completionDate: '2024-01-18',
+            duration: 1,
+            serviceType: 'Wheel Alignment'
+          },
+          {
+            id: 7,
+            vehicleId: 3,
+            bookingDate: '2024-01-22 16:00',
+            status: 'In Progress',
+            reportedIssue: 'Battery replacement',
+            estimatedCost: 200,
+            serviceStatus: 'Waiting for Parts',
+            assignedWorker: 'Muthu Kumar',
+            duration: 1.5,
+            serviceType: 'Battery Service'
+          }
+        ];
+
+        setVehicles(mockVehicles);
+        setBookings(mockBookings);
+        setIsLoading(false);
+      }, 1000);
     };
 
-    setBookings(generateSampleBookings());
+    fetchData();
   }, []);
 
   // Get days in month
@@ -257,15 +269,73 @@ const BookingCalendar: React.FC = () => {
     });
   };
 
+  const getVehicleInfo = (vehicleId: number) => {
+    return vehicles.find(v => v.id === vehicleId);
+  };
+
+  const StatusBadge = ({ status }: { status: string }) => {
+    const getStatusIcon = (status: string) => {
+      switch (status.toLowerCase()) {
+        case 'completed': return '✅';
+        case 'in progress': return '🔧';
+        case 'confirmed': return '📅';
+        case 'pending': return '⏳';
+        case 'cancelled': return '❌';
+        default: return '📝';
+      }
+    };
+
+    return (
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
+        <span className="mr-1">{getStatusIcon(status)}</span>
+        {status}
+      </span>
+    );
+  };
+
   const days = getDaysInMonth(currentDate);
   const weekDays = getDaysInWeek(currentDate, currentWeek);
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">My Bookings</h2>
+            <p className="text-gray-400">Manage your service appointments and track progress</p>
+          </div>
+        </div>
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+            <p className="text-gray-400 mt-4">Loading your bookings...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* Calendar Header */}
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-white">My Bookings Calendar</h2>
+          <p className="text-gray-400">View and manage all your service appointments</p>
+        </div>
+        <Link 
+          href="/book-service"
+          className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2 rounded-xl font-semibold transition-all transform hover:scale-105 flex items-center space-x-2"
+        >
+          <span>📅</span>
+          <span>New Booking</span>
+        </Link>
+      </div>
+
+      {/* Calendar Controls */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">
@@ -273,7 +343,7 @@ const BookingCalendar: React.FC = () => {
             {view === 'week' && `Week of ${weekDays[0].toLocaleDateString()} - ${weekDays[6].toLocaleDateString()}`}
             {view === 'day' && selectedDate && `${selectedDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`}
           </h2>
-          <p className="text-gray-400 text-sm">Manage and view all service bookings</p>
+          <p className="text-gray-400 text-sm">Your personal service schedule</p>
         </div>
         
         <div className="flex items-center gap-3">
@@ -402,19 +472,22 @@ const BookingCalendar: React.FC = () => {
                     
                     {/* Bookings for this day */}
                     <div className="space-y-1 max-h-20 overflow-y-auto">
-                      {getBookingsForDate(date).slice(0, 3).map(booking => (
-                        <div
-                          key={booking.id}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedBooking(booking);
-                          }}
-                          className={`p-1 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                        >
-                          <div className="font-medium truncate">{formatTime(booking.bookingDate)}</div>
-                          <div className="truncate">{booking.customerName}</div>
-                        </div>
-                      ))}
+                      {getBookingsForDate(date).slice(0, 3).map(booking => {
+                        const vehicle = getVehicleInfo(booking.vehicleId);
+                        return (
+                          <div
+                            key={booking.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedBooking(booking);
+                            }}
+                            className={`p-1 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                          >
+                            <div className="font-medium truncate">{formatTime(booking.bookingDate)}</div>
+                            <div className="truncate">{vehicle?.model}</div>
+                          </div>
+                        );
+                      })}
                       {getBookingsForDate(date).length > 3 && (
                         <div className="text-xs text-gray-400 text-center">
                           +{getBookingsForDate(date).length - 3} more
@@ -487,15 +560,18 @@ const BookingCalendar: React.FC = () => {
                           }
                         }}
                       >
-                        {bookingsForSlot.map(booking => (
-                          <div
-                            key={booking.id}
-                            className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                          >
-                            <div className="font-medium truncate">{booking.customerName}</div>
-                            <div className="truncate text-amber-400">{booking.serviceType}</div>
-                          </div>
-                        ))}
+                        {bookingsForSlot.map(booking => {
+                          const vehicle = getVehicleInfo(booking.vehicleId);
+                          return (
+                            <div
+                              key={booking.id}
+                              className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                            >
+                              <div className="font-medium truncate">{vehicle?.model}</div>
+                              <div className="truncate text-amber-400">{booking.serviceType}</div>
+                            </div>
+                          );
+                        })}
                       </div>
                     );
                   })}
@@ -532,27 +608,30 @@ const BookingCalendar: React.FC = () => {
                     }
                   }}
                 >
-                  {slot.bookings.map(booking => (
-                    <div
-                      key={booking.id}
-                      className={`p-3 rounded-lg border mb-2 last:mb-0 cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-semibold text-white">{booking.customerName}</div>
-                          <div className="text-sm text-gray-300">{booking.vehicleModel} • {booking.registrationNumber}</div>
-                          <div className="text-sm text-amber-400 mt-1">{booking.serviceType}</div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-amber-400 font-bold">RM {booking.estimatedCost}</div>
-                          <div className="text-xs text-gray-400">{booking.duration}h</div>
-                          {booking.assignedWorker && (
-                            <div className="text-xs text-gray-400 mt-1">{booking.assignedWorker}</div>
-                          )}
+                  {slot.bookings.map(booking => {
+                    const vehicle = getVehicleInfo(booking.vehicleId);
+                    return (
+                      <div
+                        key={booking.id}
+                        className={`p-3 rounded-lg border mb-2 last:mb-0 cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <div className="font-semibold text-white">{vehicle?.model}</div>
+                            <div className="text-sm text-gray-300">{vehicle?.registrationNumber}</div>
+                            <div className="text-sm text-amber-400 mt-1">{booking.serviceType}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-amber-400 font-bold">RM {booking.estimatedCost}</div>
+                            <div className="text-xs text-gray-400">{booking.duration}h</div>
+                            {booking.assignedWorker && (
+                              <div className="text-xs text-gray-400 mt-1">{booking.assignedWorker}</div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -575,115 +654,104 @@ const BookingCalendar: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Customer Information */}
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                    <span className="mr-2">👤</span>
-                    Customer Information
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm text-gray-400">Customer Name</label>
-                      <p className="text-white font-medium">{selectedBooking.customerName}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-400">Phone Number</label>
-                      <p className="text-white font-medium">{selectedBooking.customerPhone}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-400">Booking Date & Time</label>
-                      <p className="text-white font-medium">
-                        {new Date(selectedBooking.bookingDate).toLocaleDateString('en-MY', {
-                          weekday: 'long',
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric'
-                        })}
-                      </p>
-                      <p className="text-amber-400 font-medium">
-                        {formatTime(selectedBooking.bookingDate)} • {selectedBooking.duration} hours
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Vehicle Information */}
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                    <span className="mr-2">🚗</span>
-                    Vehicle Information
-                  </h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm text-gray-400">Vehicle Model</label>
-                      <p className="text-white font-medium">{selectedBooking.vehicleModel}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-400">Registration Number</label>
-                      <p className="text-white font-medium">{selectedBooking.registrationNumber}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm text-gray-400">Service Type</label>
-                      <p className="text-white font-medium">{selectedBooking.serviceType}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Service Details */}
-                <div className="md:col-span-2 space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                    <span className="mr-2">🔧</span>
-                    Service Details
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div>
-                      <label className="text-sm text-gray-400">Reported Issue</label>
-                      <p className="text-white mt-1 p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                        {selectedBooking.reportedIssue}
-                      </p>
-                    </div>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="text-sm text-gray-400">Status</label>
-                        <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mt-1 ${getStatusColor(selectedBooking.status)}`}>
-                          {selectedBooking.status}
+              {(() => {
+                const vehicle = getVehicleInfo(selectedBooking.vehicleId);
+                return (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                          <span className="mr-2">🚗</span>
+                          Vehicle Information
+                        </h4>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-gray-400 text-sm">Vehicle Model</p>
+                            <p className="text-white font-medium">{vehicle?.model}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Registration Number</p>
+                            <p className="text-white font-medium">{vehicle?.registrationNumber}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Service Type</p>
+                            <p className="text-white font-medium">{selectedBooking.serviceType}</p>
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <label className="text-sm text-gray-400">Estimated Cost</label>
-                        <p className="text-amber-400 text-xl font-bold">RM {selectedBooking.estimatedCost}</p>
+
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                          <span className="mr-2">📅</span>
+                          Booking Details
+                        </h4>
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-gray-400 text-sm">Status</p>
+                            <StatusBadge status={selectedBooking.status} />
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Scheduled Date & Time</p>
+                            <p className="text-white font-medium">
+                              {new Date(selectedBooking.bookingDate).toLocaleDateString('en-US', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </p>
+                            <p className="text-amber-400 font-medium">
+                              {formatTime(selectedBooking.bookingDate)} • {selectedBooking.duration} hours
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Estimated Cost</p>
+                            <p className="text-amber-400 text-xl font-bold">RM {selectedBooking.estimatedCost}</p>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                        <span className="mr-2">🔧</span>
+                        Service Details
+                      </h4>
                       <div>
-                        <label className="text-sm text-gray-400">Duration</label>
-                        <p className="text-white font-medium">{selectedBooking.duration} hours</p>
+                        <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
+                        <p className="text-white p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                          {selectedBooking.reportedIssue}
+                        </p>
                       </div>
+                      {selectedBooking.serviceStatus && (
+                        <div>
+                          <p className="text-gray-400 text-sm mb-2">Current Status</p>
+                          <p className="text-amber-400 font-medium">{selectedBooking.serviceStatus}</p>
+                        </div>
+                      )}
                       {selectedBooking.assignedWorker && (
                         <div>
-                          <label className="text-sm text-gray-400">Assigned Worker</label>
-                          <p className="text-white font-medium">{selectedBooking.assignedWorker}</p>
+                          <p className="text-gray-400 text-sm mb-2">Assigned Technician</p>
+                          <p className="text-blue-400 font-medium">{selectedBooking.assignedWorker}</p>
                         </div>
                       )}
                     </div>
-                  </div>
-                </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-3 mt-8 pt-6 border-t border-gray-800">
-                <Link
-                  href={`/admin/bookings/${selectedBooking.id}`}
-                  className="flex-1 bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105 text-center"
-                >
-                  View Full Details
-                </Link>
-                <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
-                  Edit Booking
-                </button>
-                <button className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 px-6 rounded-xl font-semibold transition-all border border-red-500/30">
-                  Cancel Booking
-                </button>
-              </div>
+                    {/* Action Buttons */}
+                    <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
+                      <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
+                        Track Service Progress
+                      </button>
+                      <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
+                        Reschedule Booking
+                      </button>
+                      <button className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 px-6 rounded-xl font-semibold transition-all border border-red-500/30">
+                        Cancel Booking
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -692,4 +760,4 @@ const BookingCalendar: React.FC = () => {
   );
 };
 
-export default BookingCalendar;
+export default BookingManagement;

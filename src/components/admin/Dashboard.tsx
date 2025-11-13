@@ -1,8 +1,11 @@
 "use client";
-// components/AdminDashboard.tsx
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import BookingCalendar from "./BookingCalender";
+import CustomerManagement from "./CustomerManagement";
+import WorkerManagement from "./WorkerManagement";
+import InventoryManagement from "./InventoryManagement";
+import ReportsManagement from "./ReportsManagement";
 
 interface DashboardStats {
   totalCustomers: number;
@@ -32,6 +35,7 @@ interface LowStockItem {
 
 const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState("overview");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     totalCustomers: 0,
     totalWorkers: 0,
@@ -112,52 +116,86 @@ const AdminDashboard: React.FC = () => {
   }, []);
 
   const StatCard = ({ title, value, icon, color, subtitle }: any) => (
-    <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-4 xs:p-5 border border-gray-700 hover:border-amber-500/30 transition-all duration-300">
+    <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-gray-400 text-xs xs:text-sm mb-1">{title}</p>
-          <p className="text-2xl xs:text-3xl font-bold text-white">
+          <p className="text-gray-400 text-sm mb-2">{title}</p>
+          <p className="text-3xl font-bold text-white mb-1">
             {isLoading ? "..." : value}
           </p>
           {subtitle && (
-            <p className="text-amber-400 text-xs mt-1">{subtitle}</p>
+            <p className="text-amber-400 text-xs font-medium">{subtitle}</p>
           )}
         </div>
-        <div className={`text-2xl xs:text-3xl ${color}`}>{icon}</div>
+        <div className={`text-3xl p-3 rounded-xl bg-gray-700/50 ${color}`}>
+          {icon}
+        </div>
       </div>
     </div>
   );
 
+  const NavigationItem = ({ id, icon, label, isActive }: any) => (
+    <button
+      onClick={() => setActiveTab(id)}
+      className={`relative flex items-center justify-center w-12 h-12 rounded-2xl transition-all duration-300 group ${
+        isActive
+          ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/25"
+          : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-white"
+      }`}
+    >
+      <span className="text-xl">{icon}</span>
+      
+      {/* Tooltip */}
+      <div className="absolute left-14 top-1/2 transform -translate-y-1/2 bg-gray-900 text-white px-3 py-2 rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-50 whitespace-nowrap shadow-xl border border-gray-700">
+        {label}
+        <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-gray-900 rotate-45"></div>
+      </div>
+    </button>
+  );
+
+  const navigationItems = [
+    { id: "overview", icon: "📊", label: "Dashboard" },
+    { id: "bookings", icon: "📅", label: "Bookings" },
+    { id: "customers", icon: "👥", label: "Customers" },
+    { id: "workers", icon: "🔧", label: "Workers" },
+    { id: "inventory", icon: "📦", label: "Inventory" },
+    { id: "reports", icon: "📈", label: "Reports" },
+    { id: "finances", icon: "💰", label: "Finances" },
+    { id: "settings", icon: "⚙️", label: "Settings" },
+  ];
+
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white">
       {/* Header */}
-      <header className="bg-gray-900/80 backdrop-blur-xl border-b border-gray-800 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8">
+      <header className="bg-gray-900/80 backdrop-blur-xl border-b border-gray-800/50 sticky top-0 z-40">
+        <div className="max-w-7xl mx-auto px-6">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 xs:w-12 xs:h-12 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-lg xs:rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-xl xs:text-2xl">
-                  C
-                </span>
+            <div className="flex items-center space-x-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/25">
+                <span className="text-white font-bold text-xl">C</span>
               </div>
               <div>
-                <h1 className="text-lg xs:text-xl font-bold bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
-                  CARVO Admin
+                <h1 className="text-xl font-bold bg-gradient-to-r from-amber-400 to-amber-500 bg-clip-text text-transparent">
+                  ChengService Admin
                 </h1>
-                <p className="text-gray-400 text-xs">Chong Meng AutoService</p>
+                <p className="text-gray-400 text-sm">Auto Service Management</p>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3 xs:space-x-4">
-              <button className="p-2 text-gray-400 hover:text-amber-400 transition-colors">
-                <span className="text-lg">🔔</span>
+            <div className="flex items-center space-x-4">
+              {/* Notifications */}
+              <button className="relative p-2 text-gray-400 hover:text-amber-400 transition-colors rounded-xl hover:bg-gray-800/50">
+                <span className="text-xl">🔔</span>
+                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-gray-900"></div>
               </button>
-              <div className="flex items-center space-x-2">
-                <div className="w-8 h-8 xs:w-10 xs:h-10 bg-amber-500 rounded-full flex items-center justify-center">
+
+              {/* User Profile */}
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-amber-500 to-amber-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <span className="text-white font-bold text-sm">A</span>
                 </div>
-                <div className="hidden xs:block">
-                  <p className="text-sm font-medium">Admin User</p>
+                <div className="hidden md:block text-right">
+                  <p className="text-sm font-medium text-white">Admin User</p>
                   <p className="text-gray-400 text-xs">Manager</p>
                 </div>
               </div>
@@ -166,58 +204,50 @@ const AdminDashboard: React.FC = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-3 xs:px-4 sm:px-6 lg:px-8 py-4 xs:py-6">
-        <div className="flex flex-col lg:flex-row gap-6 xs:gap-8">
-          {/* Sidebar */}
-          <aside className="lg:w-64 bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 p-4 xs:p-5 h-fit lg:sticky lg:top-24">
-            <nav className="space-y-2">
-              {[
-                { id: "overview", name: "📊 Overview", icon: "📊" },
-                { id: "bookings", name: "📅 Bookings", icon: "📅" },
-                { id: "customers", name: "👥 Customers", icon: "👥" },
-                { id: "workers", name: "🔧 Workers", icon: "🔧" },
-                { id: "inventory", name: "📦 Inventory", icon: "📦" },
-                { id: "reports", name: "📈 Reports", icon: "📈" },
-                { id: "finances", name: "💰 Finances", icon: "💰" },
-                { id: "settings", name: "⚙️ Settings", icon: "⚙️" },
-              ].map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveTab(item.id)}
-                  className={`w-full text-left px-3 xs:px-4 py-2 xs:py-3 rounded-lg transition-all duration-300 text-sm ${
-                    activeTab === item.id
-                      ? "bg-gradient-to-r from-yellow-500/20 to-amber-600/20 text-amber-400 border border-amber-500/30"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800/50"
-                  }`}
-                >
-                  <span className="mr-3">{item.icon}</span>
-                  {item.name}
-                </button>
-              ))}
-            </nav>
-
-            {/* Quick Actions */}
-            <div className="mt-6 pt-4 border-t border-gray-800">
-              <h3 className="text-xs xs:text-sm font-semibold text-amber-400 mb-3">
-                Quick Actions
-              </h3>
+      <div className="max-w-7xl mx-auto px-6 py-6">
+        <div className="flex gap-8">
+          {/* Floating Sidebar Navigation */}
+          <div className="fixed left-6 top-1/2 transform -translate-y-1/2 z-30 hidden lg:block">
+            <div className="bg-gray-800/80 backdrop-blur-xl rounded-2xl p-3 border border-gray-700/50 shadow-2xl">
               <div className="space-y-2">
-                <button className="w-full bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white py-2 px-3 rounded-lg text-xs xs:text-sm font-semibold transition-all transform hover:scale-105">
-                  ➕ Add Worker
-                </button>
-                <button className="w-full bg-gray-800 hover:bg-gray-700 text-white py-2 px-3 rounded-lg text-xs xs:text-sm font-semibold transition-all border border-gray-700">
-                  📊 Generate Report
-                </button>
+                {navigationItems.map((item) => (
+                  <NavigationItem
+                    key={item.id}
+                    id={item.id}
+                    icon={item.icon}
+                    label={item.label}
+                    isActive={activeTab === item.id}
+                  />
+                ))}
               </div>
             </div>
-          </aside>
+          </div>
 
           {/* Main Content */}
-          <main className="flex-1">
+          <main className="flex-1 lg:ml-20">
+            {/* Overview Tab */}
             {activeTab === "overview" && (
-              <div className="space-y-6 xs:space-y-8">
+              <div className="space-y-8">
+                {/* Welcome Header */}
+                <div className="bg-gradient-to-r from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="text-2xl font-bold text-white mb-2">
+                        Welcome back, Admin! 👋
+                      </h2>
+                      <p className="text-gray-400">
+                        Here's what's happening at ChengService today
+                      </p>
+                    </div>
+                    <div className="hidden md:flex items-center space-x-3">
+                      <span className="text-amber-400 text-lg">🏢</span>
+                      <span className="text-white font-medium">Seremban Branch</span>
+                    </div>
+                  </div>
+                </div>
+
                 {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 xs:gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   <StatCard
                     title="Total Customers"
                     value={stats.totalCustomers}
@@ -246,7 +276,7 @@ const AdminDashboard: React.FC = () => {
                     title="Monthly Revenue"
                     value={`RM ${stats.monthlyRevenue.toLocaleString()}`}
                     icon="💰"
-                    color="text-yellow-400"
+                    color="text-amber-400"
                     subtitle="This month"
                   />
                   <StatCard
@@ -257,157 +287,187 @@ const AdminDashboard: React.FC = () => {
                   />
                 </div>
 
-                {/* Recent Bookings */}
-                <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 p-4 xs:p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg xs:text-xl font-semibold text-white flex items-center">
-                      <span className="mr-2">📋</span>
-                      Recent Bookings
-                    </h2>
-                    <Link
-                      href="/admin/bookings"
-                      className="text-amber-400 hover:text-amber-300 text-xs xs:text-sm"
-                    >
-                      View All →
-                    </Link>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Recent Bookings */}
+                  <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-lg font-semibold text-white flex items-center">
+                        <span className="text-amber-400 mr-3">📋</span>
+                        Recent Bookings
+                      </h3>
+                      <Link
+                        href="/admin/bookings"
+                        className="text-amber-400 hover:text-amber-300 text-sm font-medium transition-colors"
+                      >
+                        View All →
+                      </Link>
+                    </div>
+
+                    <div className="space-y-4">
+                      {recentBookings.map((booking) => (
+                        <div
+                          key={booking.id}
+                          className="flex items-center justify-between p-4 bg-gray-700/30 rounded-xl border border-gray-600/30 hover:border-amber-500/30 transition-all duration-300"
+                        >
+                          <div>
+                            <p className="text-white font-medium">
+                              {booking.customerName}
+                            </p>
+                            <p className="text-gray-400 text-sm">
+                              {booking.vehicleModel}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span
+                              className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                                booking.status === "Completed"
+                                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                  : booking.status === "In Progress"
+                                  ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                  : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                              }`}
+                            >
+                              {booking.status}
+                            </span>
+                            <p className="text-amber-400 font-semibold mt-2">
+                              RM {booking.estimatedCost}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="space-y-3">
-                    {recentBookings.map((booking) => (
-                      <div
-                        key={booking.id}
-                        className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700"
-                      >
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {booking.customerName}
-                          </p>
-                          <p className="text-gray-400 text-xs">
-                            {booking.vehicleModel}
-                          </p>
+                  {/* Low Stock Alert */}
+                  <div className="bg-gradient-to-br from-amber-500/10 to-amber-600/5 backdrop-blur-sm rounded-2xl p-6 border border-amber-500/20">
+                    <h3 className="text-lg font-semibold text-amber-400 mb-6 flex items-center">
+                      <span className="mr-3">⚠️</span>
+                      Low Stock Alert
+                    </h3>
+
+                    <div className="space-y-4">
+                      {lowStockItems.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center justify-between p-4 bg-amber-500/10 rounded-xl border border-amber-500/20"
+                        >
+                          <div>
+                            <p className="text-white font-medium">
+                              {item.itemName}
+                            </p>
+                            <p className="text-amber-400 text-sm">
+                              {item.category}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-red-400 font-semibold">
+                              Only {item.quantity} left
+                            </p>
+                            <p className="text-gray-400 text-xs">
+                              RM {item.unitPrice} each
+                            </p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span
-                            className={`inline-block px-2 py-1 rounded-full text-xs ${
-                              booking.status === "Completed"
-                                ? "bg-green-500/20 text-green-400"
-                                : booking.status === "In Progress"
-                                ? "bg-yellow-500/20 text-yellow-400"
-                                : "bg-orange-500/20 text-orange-400"
-                            }`}
-                          >
-                            {booking.status}
-                          </span>
-                          <p className="text-amber-400 text-sm font-semibold mt-1">
-                            RM {booking.estimatedCost}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
+                    <button className="w-full mt-6 bg-amber-500 hover:bg-amber-600 text-white py-3 px-4 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg shadow-amber-500/25">
+                      📦 Order More Stock
+                    </button>
                   </div>
                 </div>
 
-                {/* Low Stock Alert */}
-                <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-amber-500/30 p-4 xs:p-5">
-                  <h2 className="text-lg xs:text-xl font-semibold text-amber-400 mb-4 flex items-center">
-                    <span className="mr-2">⚠️</span>
-                    Low Stock Alert
-                  </h2>
-
-                  <div className="space-y-3">
-                    {lowStockItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between p-3 bg-amber-500/10 rounded-lg border border-amber-500/20"
-                      >
-                        <div>
-                          <p className="text-white text-sm font-medium">
-                            {item.itemName}
-                          </p>
-                          <p className="text-amber-400 text-xs">
-                            {item.category}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-red-400 text-sm font-semibold">
-                            Only {item.quantity} left
-                          </p>
-                          <p className="text-gray-400 text-xs">
-                            RM {item.unitPrice} each
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                {/* Quick Actions */}
+                <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+                  <h3 className="text-lg font-semibold text-white mb-6 flex items-center">
+                    <span className="text-amber-400 mr-3">⚡</span>
+                    Quick Actions
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-4 px-6 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg shadow-amber-500/25 flex items-center justify-center space-x-2">
+                      <span>➕</span>
+                      <span>New Booking</span>
+                    </button>
+                    <button className="bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-xl font-semibold transition-all border border-gray-600 flex items-center justify-center space-x-2">
+                      <span>👥</span>
+                      <span>Add Customer</span>
+                    </button>
+                    <button className="bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-xl font-semibold transition-all border border-gray-600 flex items-center justify-center space-x-2">
+                      <span>📊</span>
+                      <span>Generate Report</span>
+                    </button>
                   </div>
-
-                  <button className="w-full mt-4 bg-amber-500 hover:bg-amber-600 text-white py-2 px-4 rounded-lg text-sm font-semibold transition-all">
-                    📦 Order More Stock
-                  </button>
                 </div>
               </div>
             )}
+
+            {/* Other Tabs */}
             {activeTab === "bookings" && (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                   <div>
                     <h2 className="text-2xl font-bold text-white">
-                      Booking Calendar
+                      Service Bookings
                     </h2>
                     <p className="text-gray-400">
-                      Manage all service bookings in calendar view
+                      Manage all service bookings and appointments
                     </p>
                   </div>
                   <div className="flex gap-3">
-                    <Link
-                      href="/admin/bookings/list"
-                      className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium transition-colors border border-gray-700"
-                    >
-                      📋 List View
-                    </Link>
-                    <button className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white px-4 py-2 rounded-lg font-medium transition-all transform hover:scale-105">
-                      ➕ New Booking
+                    <button className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl font-medium transition-colors border border-gray-600 flex items-center space-x-2">
+                      <span>📋</span>
+                      <span>List View</span>
+                    </button>
+                    <button className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2 rounded-xl font-medium transition-all transform hover:scale-105 flex items-center space-x-2">
+                      <span>➕</span>
+                      <span>New Booking</span>
                     </button>
                   </div>
                 </div>
-
                 <BookingCalendar />
               </div>
             )}
-            {activeTab === "customers" && (
-              <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl border border-gray-800 p-4 xs:p-5">
-                <h2 className="text-lg xs:text-xl font-semibold text-white mb-4">
-                  Customers Management
-                </h2>
-                <p className="text-gray-400">
-                  Customers management content goes here...
-                </p>
+
+            {activeTab === "customers" && <CustomerManagement />}
+            {activeTab === "workers" && <WorkerManagement />}
+            {activeTab === "inventory" && <InventoryManagement />}
+            {activeTab === "reports" && <ReportsManagement />}
+            
+            {/* Placeholder for other tabs */}
+            {activeTab === "finances" && (
+              <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-8 border border-gray-700/50 text-center">
+                <div className="text-6xl mb-4">💰</div>
+                <h3 className="text-2xl font-bold text-white mb-2">Finances</h3>
+                <p className="text-gray-400">Financial management coming soon...</p>
               </div>
             )}
-            {/* Add other tabs content similarly */}
+
+            {activeTab === "settings" && (
+              <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-8 border border-gray-700/50 text-center">
+                <div className="text-6xl mb-4">⚙️</div>
+                <h3 className="text-2xl font-bold text-white mb-2">Settings</h3>
+                <p className="text-gray-400">System settings coming soon...</p>
+              </div>
+            )}
           </main>
         </div>
       </div>
 
       {/* Mobile Bottom Navigation */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-gray-800 p-3">
-        <div className="grid grid-cols-4 gap-2">
-          {[
-            { id: "overview", icon: "📊", label: "Home" },
-            { id: "bookings", icon: "📅", label: "Bookings" },
-            { id: "customers", icon: "👥", label: "Customers" },
-            { id: "inventory", icon: "📦", label: "Stock" },
-          ].map((item) => (
+      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-xl border-t border-gray-800/50 p-4 z-40">
+        <div className="grid grid-cols-5 gap-1">
+          {navigationItems.slice(0, 5).map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center p-2 rounded-lg transition-all text-xs ${
+              className={`flex flex-col items-center p-2 rounded-xl transition-all ${
                 activeTab === item.id
                   ? "text-amber-400 bg-amber-500/20"
-                  : "text-gray-400"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               <span className="text-lg mb-1">{item.icon}</span>
-              <span>{item.label}</span>
+              <span className="text-xs">{item.label}</span>
             </button>
           ))}
         </div>
