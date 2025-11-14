@@ -19,6 +19,8 @@ model Customer {
   bookings        Booking[]
   serviceReports  Report[]
   feedback        Feedback[]
+  supportTickets  SupportTicket[]
+  aiChats         AIChat[]
   createdAt       DateTime   @default(now())
 }
 
@@ -170,4 +172,39 @@ model Feedback {
   date            DateTime   @default(now())
   customer        Customer   @relation(fields: [customerId], references: [id])
   createdAt       DateTime   @default(now())
+}
+
+model SupportTicket {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  subject     String
+  category    String   // general, service, billing, technical, feedback
+  priority    String   // low, medium, high, urgent
+  status      String   // open, in-progress, resolved, closed
+  description String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  customer    Customer @relation(fields: [customerId], references: [id])
+  messages    SupportMessage[]
+}
+
+model SupportMessage {
+  id        Int      @id @default(autoincrement())
+  ticketId  Int
+  sender    String   // customer, support, ai
+  message   String
+  timestamp DateTime @default(now())
+  
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model AIChat {
+  id          Int      @id @default(autoincrement())
+  customerId  Int
+  question    String
+  answer      String?
+  type        String   // user, ai
+  timestamp   DateTime @default(now())
+  
+  customer    Customer @relation(fields: [customerId], references: [id])
 }

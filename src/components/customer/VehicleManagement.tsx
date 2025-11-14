@@ -6,15 +6,16 @@ interface CustomerVehicle {
   id: number;
   model: string;
   registrationNumber: string;
-  year: number;
-  type: string;
-  color?: string;
-  engineCapacity?: string;
-  lastService?: string;
-  nextService?: string;
-  mileage?: number;
-  insuranceExpiry?: string;
-  roadTaxExpiry?: string;
+  year: number | null;
+  type: string | null;
+  color: string | null;
+  engineCapacity: string | null;
+  lastService: string | null;
+  nextService: string | null;
+  mileage: number | null;
+  insuranceExpiry: string | null;
+  roadTaxExpiry: string | null;
+  createdAt: string;
 }
 
 interface ServiceRecord {
@@ -35,6 +36,7 @@ const VehicleManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'list' | 'details' | 'add' | 'edit'>('list');
   const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState('');
 
   // Form states
   const [formData, setFormData] = useState({
@@ -49,104 +51,48 @@ const VehicleManagement: React.FC = () => {
     roadTaxExpiry: ''
   });
 
-  // Simulated data fetch
+  // Fetch real data from API
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      // Simulate API call
-      setTimeout(() => {
-        const mockVehicles: CustomerVehicle[] = [
-          {
-            id: 1,
-            model: 'Toyota Vios',
-            registrationNumber: 'ABC1234',
-            year: 2020,
-            type: 'Sedan',
-            color: 'Silver',
-            engineCapacity: '1.5L',
-            lastService: '2024-01-10',
-            nextService: '2024-04-10',
-            mileage: 45230,
-            insuranceExpiry: '2024-12-31',
-            roadTaxExpiry: '2024-12-31'
-          },
-          {
-            id: 2,
-            model: 'Honda City',
-            registrationNumber: 'XYZ5678',
-            year: 2019,
-            type: 'Sedan',
-            color: 'White',
-            engineCapacity: '1.5L',
-            lastService: '2024-01-05',
-            nextService: '2024-04-05',
-            mileage: 38760,
-            insuranceExpiry: '2024-11-30',
-            roadTaxExpiry: '2024-11-30'
-          },
-          {
-            id: 3,
-            model: 'Proton Saga',
-            registrationNumber: 'DEF9012',
-            year: 2021,
-            type: 'Sedan',
-            color: 'Red',
-            engineCapacity: '1.3L',
-            lastService: '2024-01-15',
-            nextService: '2024-04-15',
-            mileage: 21500,
-            insuranceExpiry: '2025-01-31',
-            roadTaxExpiry: '2025-01-31'
-          }
-        ];
-
-        const mockServiceHistory: ServiceRecord[] = [
-          {
-            id: 1,
-            vehicleId: 1,
-            date: '2024-01-10',
-            serviceType: 'Regular Maintenance',
-            cost: 120,
-            workDone: 'Oil change, filter replacement, tire rotation',
-            mileage: 45000,
-            nextServiceDue: '2024-04-10'
-          },
-          {
-            id: 2,
-            vehicleId: 1,
-            date: '2023-10-15',
-            serviceType: 'Full Service',
-            cost: 250,
-            workDone: 'Complete vehicle inspection and maintenance',
-            mileage: 40000,
-            nextServiceDue: '2024-01-10'
-          },
-          {
-            id: 3,
-            vehicleId: 1,
-            date: '2023-07-20',
-            serviceType: 'Brake Service',
-            cost: 180,
-            workDone: 'Brake pads replacement and fluid change',
-            mileage: 35000,
-            nextServiceDue: '2023-10-15'
-          }
-        ];
-
-        setVehicles(mockVehicles);
-        setServiceHistory(mockServiceHistory);
-        setIsLoading(false);
-      }, 1000);
-    };
-
-    fetchData();
+    fetchVehicles();
   }, []);
 
-  const handleViewVehicle = (vehicle: CustomerVehicle) => {
+  const fetchVehicles = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      const response = await fetch('/api/customer/me');
+      if (!response.ok) {
+        throw new Error('Failed to fetch vehicles');
+      }
+      
+      const result = await response.json();
+      setVehicles(result.customer.vehicles || []);
+
+    } catch (error) {
+      console.error('Error fetching vehicles:', error);
+      setError('Failed to load vehicles');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchServiceHistory = async (vehicleId: number) => {
+    try {
+      const response = await fetch(`/api/customer/vehicles/${vehicleId}/services`);
+      if (response.ok) {
+        const result = await response.json();
+        setServiceHistory(result.services || []);
+      }
+    } catch (error) {
+      console.error('Error fetching service history:', error);
+    }
+  };
+
+  const handleViewVehicle = async (vehicle: CustomerVehicle) => {
     setSelectedVehicle(vehicle);
     setViewMode('details');
-    // In a real app, you would fetch service history for this specific vehicle
+    await fetchServiceHistory(vehicle.id);
   };
 
   const handleAddVehicle = () => {
@@ -168,8 +114,8 @@ const VehicleManagement: React.FC = () => {
     setFormData({
       model: vehicle.model,
       registrationNumber: vehicle.registrationNumber,
-      year: vehicle.year,
-      type: vehicle.type.toLowerCase(),
+      year: vehicle.year || new Date().getFullYear(),
+      type: vehicle.type?.toLowerCase() || 'sedan',
       color: vehicle.color || '',
       engineCapacity: vehicle.engineCapacity || '',
       mileage: vehicle.mileage?.toString() || '',
@@ -183,26 +129,78 @@ const VehicleManagement: React.FC = () => {
   const handleBackToList = () => {
     setViewMode('list');
     setSelectedVehicle(null);
+    setServiceHistory([]);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
+  const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle form submission here
-    console.log('Form data:', formData);
-    // Simulate API call
-    setTimeout(() => {
-      setViewMode('list');
-    }, 1000);
-  };
+    setError('');
 
-  const handleDeleteVehicle = (vehicleId: number) => {
-    if (confirm('Are you sure you want to remove this vehicle?')) {
-      // Handle delete operation
-      setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+    try {
+      const url = viewMode === 'add' 
+        ? '/api/customer/vehicles' 
+        : `/api/customer/vehicles/${selectedVehicle?.id}`;
+      
+      const method = viewMode === 'add' ? 'POST' : 'PUT';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: formData.model,
+          registrationNumber: formData.registrationNumber,
+          year: parseInt(formData.year.toString()),
+          type: formData.type,
+          color: formData.color || null,
+          engineCapacity: formData.engineCapacity || null,
+          mileage: formData.mileage ? parseInt(formData.mileage) : null,
+          insuranceExpiry: formData.insuranceExpiry || null,
+          roadTaxExpiry: formData.roadTaxExpiry || null
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save vehicle');
+      }
+
+      // Refresh vehicles list
+      await fetchVehicles();
+      setViewMode('list');
+      
+    } catch (error) {
+      console.error('Error saving vehicle:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save vehicle');
     }
   };
 
-  const getDaysUntil = (dateString: string) => {
+  const handleDeleteVehicle = async (vehicleId: number) => {
+    if (!confirm('Are you sure you want to remove this vehicle? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer/vehicles/${vehicleId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete vehicle');
+      }
+
+      // Remove from local state
+      setVehicles(prev => prev.filter(v => v.id !== vehicleId));
+      
+    } catch (error) {
+      console.error('Error deleting vehicle:', error);
+      alert('Failed to delete vehicle');
+    }
+  };
+
+  const getDaysUntil = (dateString: string | null) => {
+    if (!dateString) return Infinity;
     const today = new Date();
     const targetDate = new Date(dateString);
     const diffTime = targetDate.getTime() - today.getTime();
@@ -210,7 +208,7 @@ const VehicleManagement: React.FC = () => {
     return diffDays;
   };
 
-  const getExpiryStatus = (dateString: string) => {
+  const getExpiryStatus = (dateString: string | null) => {
     const daysUntil = getDaysUntil(dateString);
     if (daysUntil < 0) return { status: 'Expired', color: 'text-red-400 bg-red-500/20' };
     if (daysUntil <= 30) return { status: 'Soon', color: 'text-orange-400 bg-orange-500/20' };
@@ -223,8 +221,8 @@ const VehicleManagement: React.FC = () => {
   );
 
   if (viewMode === 'details' && selectedVehicle) {
-    const insuranceStatus = getExpiryStatus(selectedVehicle.insuranceExpiry || '');
-    const roadTaxStatus = getExpiryStatus(selectedVehicle.roadTaxExpiry || '');
+    const insuranceStatus = getExpiryStatus(selectedVehicle.insuranceExpiry);
+    const roadTaxStatus = getExpiryStatus(selectedVehicle.roadTaxExpiry);
     
     return (
       <div className="space-y-6">
@@ -258,11 +256,19 @@ const VehicleManagement: React.FC = () => {
           </div>
         </div>
 
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl">
+            {error}
+          </div>
+        )}
+
         {/* Vehicle Info Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl p-4 border border-gray-700/50">
             <p className="text-gray-400 text-sm">Mileage</p>
-            <p className="text-2xl font-bold text-white">{selectedVehicle.mileage?.toLocaleString()} km</p>
+            <p className="text-2xl font-bold text-white">
+              {selectedVehicle.mileage ? selectedVehicle.mileage.toLocaleString() + ' km' : 'Not set'}
+            </p>
           </div>
           <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl p-4 border border-gray-700/50">
             <p className="text-gray-400 text-sm">Last Service</p>
@@ -279,7 +285,7 @@ const VehicleManagement: React.FC = () => {
           <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl p-4 border border-gray-700/50">
             <p className="text-gray-400 text-sm">Vehicle Age</p>
             <p className="text-lg font-bold text-white">
-              {new Date().getFullYear() - selectedVehicle.year} years
+              {selectedVehicle.year ? new Date().getFullYear() - selectedVehicle.year + ' years' : 'Unknown'}
             </p>
           </div>
         </div>
@@ -298,11 +304,11 @@ const VehicleManagement: React.FC = () => {
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Year</p>
-                <p className="text-white font-medium">{selectedVehicle.year}</p>
+                <p className="text-white font-medium">{selectedVehicle.year || 'Not set'}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Type</p>
-                <p className="text-white font-medium">{selectedVehicle.type}</p>
+                <p className="text-white font-medium">{selectedVehicle.type || 'Not specified'}</p>
               </div>
               <div>
                 <p className="text-gray-400 text-sm">Color</p>
@@ -311,6 +317,12 @@ const VehicleManagement: React.FC = () => {
               <div>
                 <p className="text-gray-400 text-sm">Engine Capacity</p>
                 <p className="text-white font-medium">{selectedVehicle.engineCapacity || 'Not specified'}</p>
+              </div>
+              <div>
+                <p className="text-gray-400 text-sm">Added On</p>
+                <p className="text-white font-medium">
+                  {new Date(selectedVehicle.createdAt).toLocaleDateString()}
+                </p>
               </div>
             </div>
           </div>
@@ -326,7 +338,10 @@ const VehicleManagement: React.FC = () => {
                 <div>
                   <p className="text-white font-medium">Insurance</p>
                   <p className="text-gray-400 text-sm">
-                    Expires: {selectedVehicle.insuranceExpiry ? new Date(selectedVehicle.insuranceExpiry).toLocaleDateString() : 'Not set'}
+                    {selectedVehicle.insuranceExpiry 
+                      ? `Expires: ${new Date(selectedVehicle.insuranceExpiry).toLocaleDateString()}`
+                      : 'Not set'
+                    }
                   </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${insuranceStatus.color}`}>
@@ -337,7 +352,10 @@ const VehicleManagement: React.FC = () => {
                 <div>
                   <p className="text-white font-medium">Road Tax</p>
                   <p className="text-gray-400 text-sm">
-                    Expires: {selectedVehicle.roadTaxExpiry ? new Date(selectedVehicle.roadTaxExpiry).toLocaleDateString() : 'Not set'}
+                    {selectedVehicle.roadTaxExpiry 
+                      ? `Expires: ${new Date(selectedVehicle.roadTaxExpiry).toLocaleDateString()}`
+                      : 'Not set'
+                    }
                   </p>
                 </div>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${roadTaxStatus.color}`}>
@@ -355,31 +373,44 @@ const VehicleManagement: React.FC = () => {
             Service History
           </h3>
           <div className="space-y-4">
-            {serviceHistory.filter(service => service.vehicleId === selectedVehicle.id).map(service => (
-              <div key={service.id} className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/30">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h4 className="text-white font-semibold">{service.serviceType}</h4>
-                    <p className="text-gray-400 text-sm">
-                      {new Date(service.date).toLocaleDateString()} • {service.mileage.toLocaleString()} km
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-amber-400 font-bold text-lg">RM {service.cost}</p>
-                    <p className="text-green-400 text-sm">Completed</p>
-                  </div>
-                </div>
-                <p className="text-gray-300 text-sm">{service.workDone}</p>
-                <div className="flex justify-between items-center mt-3 text-sm">
-                  <span className="text-gray-400">
-                    Next service: {new Date(service.nextServiceDue).toLocaleDateString()}
-                  </span>
-                  <button className="text-amber-400 hover:text-amber-300 transition-colors">
-                    View Details
-                  </button>
-                </div>
+            {serviceHistory.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <div className="text-4xl mb-2">🔧</div>
+                <p>No service history available</p>
+                <Link 
+                  href={`/book-service?vehicle=${selectedVehicle.id}`}
+                  className="text-amber-400 hover:text-amber-300 text-sm"
+                >
+                  Book your first service
+                </Link>
               </div>
-            ))}
+            ) : (
+              serviceHistory.map(service => (
+                <div key={service.id} className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/30">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <h4 className="text-white font-semibold">{service.serviceType}</h4>
+                      <p className="text-gray-400 text-sm">
+                        {new Date(service.date).toLocaleDateString()} • {service.mileage.toLocaleString()} km
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-amber-400 font-bold text-lg">RM {service.cost}</p>
+                      <p className="text-green-400 text-sm">Completed</p>
+                    </div>
+                  </div>
+                  <p className="text-gray-300 text-sm">{service.workDone}</p>
+                  <div className="flex justify-between items-center mt-3 text-sm">
+                    <span className="text-gray-400">
+                      Next service: {new Date(service.nextServiceDue).toLocaleDateString()}
+                    </span>
+                    <button className="text-amber-400 hover:text-amber-300 transition-colors">
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -408,6 +439,12 @@ const VehicleManagement: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {error && (
+          <div className="bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl">
+            {error}
+          </div>
+        )}
 
         {/* Vehicle Form */}
         <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl border border-gray-700/50 p-6">
@@ -555,6 +592,12 @@ const VehicleManagement: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-500/20 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl">
+          {error}
+        </div>
+      )}
+
       {/* Search */}
       <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl border border-gray-700/50 p-6">
         <div className="relative">
@@ -580,7 +623,7 @@ const VehicleManagement: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredVehicles.map((vehicle) => {
-            const insuranceStatus = getExpiryStatus(vehicle.insuranceExpiry || '');
+            const insuranceStatus = getExpiryStatus(vehicle.insuranceExpiry);
             const needsService = vehicle.nextService && getDaysUntil(vehicle.nextService) <= 30;
             
             return (
@@ -604,15 +647,17 @@ const VehicleManagement: React.FC = () => {
                 <div className="space-y-3 mb-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Year</span>
-                    <span className="text-white">{vehicle.year}</span>
+                    <span className="text-white">{vehicle.year || 'Not set'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Type</span>
-                    <span className="text-white">{vehicle.type}</span>
+                    <span className="text-white">{vehicle.type || 'Not specified'}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Mileage</span>
-                    <span className="text-white">{vehicle.mileage?.toLocaleString()} km</span>
+                    <span className="text-white">
+                      {vehicle.mileage ? vehicle.mileage.toLocaleString() + ' km' : 'Not set'}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-400">Insurance</span>
@@ -649,6 +694,15 @@ const VehicleManagement: React.FC = () => {
                     }}
                   >
                     Edit
+                  </button>
+                  <button 
+                    className="px-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-2 rounded-xl font-semibold transition-all border border-red-500/30 text-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteVehicle(vehicle.id);
+                    }}
+                  >
+                    🗑️
                   </button>
                 </div>
               </div>

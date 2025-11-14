@@ -4,24 +4,41 @@ import Link from 'next/link';
 
 interface ServiceBooking {
   id: number;
+  customerId: number;
   vehicleId: number;
+  serviceId?: number;
   bookingDate: string;
   status: 'Pending' | 'Confirmed' | 'In Progress' | 'Completed' | 'Cancelled';
-  reportedIssue: string;
-  estimatedCost: number;
-  serviceStatus?: string;
-  completionDate?: string;
-  assignedWorker?: string;
-  duration: number;
-  serviceType: string;
+  reportedIssue: string | null;
+  estimatedCost: number | null;
+  confirmed: boolean;
+  duration: number | null;
+  createdAt: string;
+  vehicle: {
+    model: string;
+    registrationNumber: string;
+    year: number | null;
+    type: string | null;
+  };
+  service?: {
+    serviceStatus: string;
+    repairNotes: string | null;
+    serviceCost: number | null;
+    spareParts: string | null;
+    completionDate: string | null;
+    duration: number | null;
+    worker?: {
+      name: string;
+    };
+  };
 }
 
 interface CustomerVehicle {
   id: number;
   model: string;
   registrationNumber: string;
-  year: number;
-  type: string;
+  year: number | null;
+  type: string | null;
 }
 
 interface TimeSlot {
@@ -40,132 +57,75 @@ const BookingManagement: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [currentWeek, setCurrentWeek] = useState(0);
+  const [error, setError] = useState('');
 
-  // Simulated data fetch
+  // Fetch real data from API
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
-      
-      // Simulate API call
-      setTimeout(() => {
-        const mockVehicles: CustomerVehicle[] = [
-          {
-            id: 1,
-            model: 'Toyota Vios',
-            registrationNumber: 'ABC1234',
-            year: 2020,
-            type: 'Sedan'
-          },
-          {
-            id: 2,
-            model: 'Honda City',
-            registrationNumber: 'XYZ5678',
-            year: 2019,
-            type: 'Sedan'
-          },
-          {
-            id: 3,
-            model: 'Proton Saga',
-            registrationNumber: 'DEF9012',
-            year: 2021,
-            type: 'Sedan'
-          }
-        ];
-
-        const mockBookings: ServiceBooking[] = [
-          {
-            id: 1,
-            vehicleId: 1,
-            bookingDate: '2024-01-15 09:00',
-            status: 'In Progress',
-            reportedIssue: 'Regular maintenance and oil change',
-            estimatedCost: 120,
-            serviceStatus: 'Diagnostics Complete',
-            assignedWorker: 'Ali bin Ahmad',
-            duration: 1.5,
-            serviceType: 'Regular Maintenance'
-          },
-          {
-            id: 2,
-            vehicleId: 2,
-            bookingDate: '2024-01-20 14:00',
-            status: 'Confirmed',
-            reportedIssue: 'Brake system inspection',
-            estimatedCost: 80,
-            serviceStatus: 'Scheduled',
-            duration: 2,
-            serviceType: 'Brake Service'
-          },
-          {
-            id: 3,
-            vehicleId: 1,
-            bookingDate: '2024-01-25 11:00',
-            status: 'Pending',
-            reportedIssue: 'AC not cooling properly',
-            estimatedCost: 180,
-            duration: 2.5,
-            serviceType: 'AC Service'
-          },
-          {
-            id: 4,
-            vehicleId: 3,
-            bookingDate: '2024-01-10 10:30',
-            status: 'Completed',
-            reportedIssue: 'Tire rotation and general checkup',
-            estimatedCost: 40,
-            serviceStatus: 'Service Completed',
-            assignedWorker: 'Muthu Kumar',
-            completionDate: '2024-01-10',
-            duration: 1,
-            serviceType: 'Tire Rotation'
-          },
-          {
-            id: 5,
-            vehicleId: 2,
-            bookingDate: '2024-02-01 08:00',
-            status: 'Confirmed',
-            reportedIssue: 'Full vehicle service',
-            estimatedCost: 350,
-            serviceStatus: 'Parts Ordered',
-            assignedWorker: 'Chen Wei',
-            duration: 3,
-            serviceType: 'Full Service'
-          },
-          {
-            id: 6,
-            vehicleId: 1,
-            bookingDate: '2024-01-18 13:00',
-            status: 'Completed',
-            reportedIssue: 'Wheel alignment',
-            estimatedCost: 60,
-            serviceStatus: 'Service Completed',
-            assignedWorker: 'Ali bin Ahmad',
-            completionDate: '2024-01-18',
-            duration: 1,
-            serviceType: 'Wheel Alignment'
-          },
-          {
-            id: 7,
-            vehicleId: 3,
-            bookingDate: '2024-01-22 16:00',
-            status: 'In Progress',
-            reportedIssue: 'Battery replacement',
-            estimatedCost: 200,
-            serviceStatus: 'Waiting for Parts',
-            assignedWorker: 'Muthu Kumar',
-            duration: 1.5,
-            serviceType: 'Battery Service'
-          }
-        ];
-
-        setVehicles(mockVehicles);
-        setBookings(mockBookings);
-        setIsLoading(false);
-      }, 1000);
-    };
-
     fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      // Fetch bookings
+      const bookingsResponse = await fetch('/api/customer/bookings');
+      if (!bookingsResponse.ok) {
+        throw new Error('Failed to fetch bookings');
+      }
+      const bookingsResult = await bookingsResponse.json();
+      setBookings(bookingsResult.bookings || []);
+
+      // Fetch vehicles
+      const profileResponse = await fetch('/api/auth/me');
+      if (profileResponse.ok) {
+        const profileResult = await profileResponse.json();
+        setVehicles(profileResult.customer.vehicles || []);
+      }
+
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to load booking data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCancelBooking = async (bookingId: number) => {
+    if (!confirm('Are you sure you want to cancel this booking?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/customer/bookings/${bookingId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: 'Cancelled'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to cancel booking');
+      }
+
+      // Update local state
+      setBookings(prev => prev.map(booking => 
+        booking.id === bookingId 
+          ? { ...booking, status: 'Cancelled' }
+          : booking
+      ));
+      
+      setSelectedBooking(null);
+      alert('Booking cancelled successfully');
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      alert('Failed to cancel booking');
+    }
+  };
 
   // Get days in month
   const getDaysInMonth = (date: Date) => {
@@ -269,10 +229,6 @@ const BookingManagement: React.FC = () => {
     });
   };
 
-  const getVehicleInfo = (vehicleId: number) => {
-    return vehicles.find(v => v.id === vehicleId);
-  };
-
   const StatusBadge = ({ status }: { status: string }) => {
     const getStatusIcon = (status: string) => {
       switch (status.toLowerCase()) {
@@ -291,6 +247,15 @@ const BookingManagement: React.FC = () => {
         {status}
       </span>
     );
+  };
+
+  const getServiceType = (booking: ServiceBooking) => {
+    if (booking.reportedIssue?.toLowerCase().includes('oil')) return 'Oil Change';
+    if (booking.reportedIssue?.toLowerCase().includes('brake')) return 'Brake Service';
+    if (booking.reportedIssue?.toLowerCase().includes('ac')) return 'AC Service';
+    if (booking.reportedIssue?.toLowerCase().includes('tire')) return 'Tire Service';
+    if (booking.reportedIssue?.toLowerCase().includes('battery')) return 'Battery Service';
+    return 'General Service';
   };
 
   const days = getDaysInMonth(currentDate);
@@ -318,6 +283,30 @@ const BookingManagement: React.FC = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-2xl font-bold text-white">My Bookings</h2>
+            <p className="text-gray-400">Manage your service appointments and track progress</p>
+          </div>
+        </div>
+        <div className="flex justify-center items-center py-12">
+          <div className="text-center">
+            <div className="text-red-400 text-lg mb-4">⚠️ {error}</div>
+            <button 
+              onClick={fetchData}
+              className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -333,6 +322,32 @@ const BookingManagement: React.FC = () => {
           <span>📅</span>
           <span>New Booking</span>
         </Link>
+      </div>
+
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+          <div className="text-2xl font-bold text-white">{bookings.length}</div>
+          <div className="text-gray-400 text-sm">Total Bookings</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+          <div className="text-2xl font-bold text-blue-400">
+            {bookings.filter(b => b.status === 'Confirmed' || b.status === 'In Progress').length}
+          </div>
+          <div className="text-gray-400 text-sm">Active</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+          <div className="text-2xl font-bold text-green-400">
+            {bookings.filter(b => b.status === 'Completed').length}
+          </div>
+          <div className="text-gray-400 text-sm">Completed</div>
+        </div>
+        <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
+          <div className="text-2xl font-bold text-orange-400">
+            {bookings.filter(b => b.status === 'Pending').length}
+          </div>
+          <div className="text-gray-400 text-sm">Pending</div>
+        </div>
       </div>
 
       {/* Calendar Controls */}
@@ -472,22 +487,19 @@ const BookingManagement: React.FC = () => {
                     
                     {/* Bookings for this day */}
                     <div className="space-y-1 max-h-20 overflow-y-auto">
-                      {getBookingsForDate(date).slice(0, 3).map(booking => {
-                        const vehicle = getVehicleInfo(booking.vehicleId);
-                        return (
-                          <div
-                            key={booking.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedBooking(booking);
-                            }}
-                            className={`p-1 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                          >
-                            <div className="font-medium truncate">{formatTime(booking.bookingDate)}</div>
-                            <div className="truncate">{vehicle?.model}</div>
-                          </div>
-                        );
-                      })}
+                      {getBookingsForDate(date).slice(0, 3).map(booking => (
+                        <div
+                          key={booking.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedBooking(booking);
+                          }}
+                          className={`p-1 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                        >
+                          <div className="font-medium truncate">{formatTime(booking.bookingDate)}</div>
+                          <div className="truncate">{booking.vehicle.model}</div>
+                        </div>
+                      ))}
                       {getBookingsForDate(date).length > 3 && (
                         <div className="text-xs text-gray-400 text-center">
                           +{getBookingsForDate(date).length - 3} more
@@ -560,18 +572,15 @@ const BookingManagement: React.FC = () => {
                           }
                         }}
                       >
-                        {bookingsForSlot.map(booking => {
-                          const vehicle = getVehicleInfo(booking.vehicleId);
-                          return (
-                            <div
-                              key={booking.id}
-                              className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                            >
-                              <div className="font-medium truncate">{vehicle?.model}</div>
-                              <div className="truncate text-amber-400">{booking.serviceType}</div>
-                            </div>
-                          );
-                        })}
+                        {bookingsForSlot.map(booking => (
+                          <div
+                            key={booking.id}
+                            className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                          >
+                            <div className="font-medium truncate">{booking.vehicle.model}</div>
+                            <div className="truncate text-amber-400">{getServiceType(booking)}</div>
+                          </div>
+                        ))}
                       </div>
                     );
                   })}
@@ -608,30 +617,27 @@ const BookingManagement: React.FC = () => {
                     }
                   }}
                 >
-                  {slot.bookings.map(booking => {
-                    const vehicle = getVehicleInfo(booking.vehicleId);
-                    return (
-                      <div
-                        key={booking.id}
-                        className={`p-3 rounded-lg border mb-2 last:mb-0 cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <div className="font-semibold text-white">{vehicle?.model}</div>
-                            <div className="text-sm text-gray-300">{vehicle?.registrationNumber}</div>
-                            <div className="text-sm text-amber-400 mt-1">{booking.serviceType}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-amber-400 font-bold">RM {booking.estimatedCost}</div>
-                            <div className="text-xs text-gray-400">{booking.duration}h</div>
-                            {booking.assignedWorker && (
-                              <div className="text-xs text-gray-400 mt-1">{booking.assignedWorker}</div>
-                            )}
-                          </div>
+                  {slot.bookings.map(booking => (
+                    <div
+                      key={booking.id}
+                      className={`p-3 rounded-lg border mb-2 last:mb-0 cursor-pointer transition-all hover:scale-105 ${getStatusColor(booking.status)}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-semibold text-white">{booking.vehicle.model}</div>
+                          <div className="text-sm text-gray-300">{booking.vehicle.registrationNumber}</div>
+                          <div className="text-sm text-amber-400 mt-1">{getServiceType(booking)}</div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-amber-400 font-bold">RM {booking.estimatedCost || '0'}</div>
+                          <div className="text-xs text-gray-400">{booking.duration || 1}h</div>
+                          {booking.service?.worker && (
+                            <div className="text-xs text-gray-400 mt-1">{booking.service.worker.name}</div>
+                          )}
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
@@ -654,104 +660,104 @@ const BookingManagement: React.FC = () => {
                 </button>
               </div>
 
-              {(() => {
-                const vehicle = getVehicleInfo(selectedBooking.vehicleId);
-                return (
-                  <div className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-4">
-                        <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                          <span className="mr-2">🚗</span>
-                          Vehicle Information
-                        </h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-gray-400 text-sm">Vehicle Model</p>
-                            <p className="text-white font-medium">{vehicle?.model}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm">Registration Number</p>
-                            <p className="text-white font-medium">{vehicle?.registrationNumber}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm">Service Type</p>
-                            <p className="text-white font-medium">{selectedBooking.serviceType}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="space-y-4">
-                        <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                          <span className="mr-2">📅</span>
-                          Booking Details
-                        </h4>
-                        <div className="space-y-3">
-                          <div>
-                            <p className="text-gray-400 text-sm">Status</p>
-                            <StatusBadge status={selectedBooking.status} />
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm">Scheduled Date & Time</p>
-                            <p className="text-white font-medium">
-                              {new Date(selectedBooking.bookingDate).toLocaleDateString('en-US', {
-                                weekday: 'long',
-                                year: 'numeric',
-                                month: 'long',
-                                day: 'numeric'
-                              })}
-                            </p>
-                            <p className="text-amber-400 font-medium">
-                              {formatTime(selectedBooking.bookingDate)} • {selectedBooking.duration} hours
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm">Estimated Cost</p>
-                            <p className="text-amber-400 text-xl font-bold">RM {selectedBooking.estimatedCost}</p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-4">
-                      <h4 className="text-lg font-semibold text-amber-400 flex items-center">
-                        <span className="mr-2">🔧</span>
-                        Service Details
-                      </h4>
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                      <span className="mr-2">🚗</span>
+                      Vehicle Information
+                    </h4>
+                    <div className="space-y-3">
                       <div>
-                        <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
-                        <p className="text-white p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                          {selectedBooking.reportedIssue}
-                        </p>
+                        <p className="text-gray-400 text-sm">Vehicle Model</p>
+                        <p className="text-white font-medium">{selectedBooking.vehicle.model}</p>
                       </div>
-                      {selectedBooking.serviceStatus && (
-                        <div>
-                          <p className="text-gray-400 text-sm mb-2">Current Status</p>
-                          <p className="text-amber-400 font-medium">{selectedBooking.serviceStatus}</p>
-                        </div>
-                      )}
-                      {selectedBooking.assignedWorker && (
-                        <div>
-                          <p className="text-gray-400 text-sm mb-2">Assigned Technician</p>
-                          <p className="text-blue-400 font-medium">{selectedBooking.assignedWorker}</p>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Action Buttons */}
-                    <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
-                      <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
-                        Track Service Progress
-                      </button>
-                      <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
-                        Reschedule Booking
-                      </button>
-                      <button className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 px-6 rounded-xl font-semibold transition-all border border-red-500/30">
-                        Cancel Booking
-                      </button>
+                      <div>
+                        <p className="text-gray-400 text-sm">Registration Number</p>
+                        <p className="text-white font-medium">{selectedBooking.vehicle.registrationNumber}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Service Type</p>
+                        <p className="text-white font-medium">{getServiceType(selectedBooking)}</p>
+                      </div>
                     </div>
                   </div>
-                );
-              })()}
+
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                      <span className="mr-2">📅</span>
+                      Booking Details
+                    </h4>
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-gray-400 text-sm">Status</p>
+                        <StatusBadge status={selectedBooking.status} />
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Scheduled Date & Time</p>
+                        <p className="text-white font-medium">
+                          {new Date(selectedBooking.bookingDate).toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                        <p className="text-amber-400 font-medium">
+                          {formatTime(selectedBooking.bookingDate)} • {selectedBooking.duration || 1} hours
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-400 text-sm">Estimated Cost</p>
+                        <p className="text-amber-400 text-xl font-bold">RM {selectedBooking.estimatedCost || '0'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-lg font-semibold text-amber-400 flex items-center">
+                    <span className="mr-2">🔧</span>
+                    Service Details
+                  </h4>
+                  <div>
+                    <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
+                    <p className="text-white p-3 bg-gray-800/50 rounded-lg border border-gray-700">
+                      {selectedBooking.reportedIssue || 'No specific issue reported'}
+                    </p>
+                  </div>
+                  {selectedBooking.service?.serviceStatus && (
+                    <div>
+                      <p className="text-gray-400 text-sm mb-2">Current Status</p>
+                      <p className="text-amber-400 font-medium">{selectedBooking.service.serviceStatus}</p>
+                    </div>
+                  )}
+                  {selectedBooking.service?.worker && (
+                    <div>
+                      <p className="text-gray-400 text-sm mb-2">Assigned Technician</p>
+                      <p className="text-blue-400 font-medium">{selectedBooking.service.worker.name}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
+                  <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
+                    Track Service Progress
+                  </button>
+                  <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
+                    Reschedule Booking
+                  </button>
+                  {selectedBooking.status !== 'Cancelled' && selectedBooking.status !== 'Completed' && (
+                    <button 
+                      onClick={() => handleCancelBooking(selectedBooking.id)}
+                      className="flex-1 bg-red-500/20 hover:bg-red-500/30 text-red-400 py-3 px-6 rounded-xl font-semibold transition-all border border-red-500/30"
+                    >
+                      Cancel Booking
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

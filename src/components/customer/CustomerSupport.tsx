@@ -125,136 +125,66 @@ const CustomerSupport: React.FC = () => {
     }
   ];
 
-  // Simulated data fetch
+  // Fetch real data from API
   useEffect(() => {
-    const fetchData = async () => {
+    fetchSupportData();
+  }, []);
+
+  const fetchSupportData = async () => {
+    try {
       setIsLoading(true);
       
-      // Simulate API call
-      setTimeout(() => {
-        const mockTickets: SupportTicket[] = [
-          {
-            id: 1,
-            subject: 'Service Completion Delay',
-            category: 'service',
-            priority: 'high',
-            status: 'in-progress',
-            description: 'My vehicle service was supposed to be completed yesterday but it\'s still ongoing. Need update on completion time.',
-            createdAt: '2024-01-15T10:30:00',
-            updatedAt: '2024-01-16T14:20:00',
-            messages: [
-              {
-                id: 1,
-                ticketId: 1,
-                sender: 'customer',
-                message: 'When will my car be ready? It\'s been 2 days.',
-                timestamp: '2024-01-15T10:30:00'
-              },
-              {
-                id: 2,
-                ticketId: 1,
-                sender: 'support',
-                message: 'We apologize for the delay. We\'re waiting for a specific part to arrive. Expected completion is tomorrow.',
-                timestamp: '2024-01-15T11:15:00'
-              }
-            ]
-          },
-          {
-            id: 2,
-            subject: 'Invoice Query',
-            category: 'billing',
-            priority: 'medium',
-            status: 'open',
-            description: 'I noticed some charges on my invoice that I don\'t understand. Can you explain the breakdown?',
-            createdAt: '2024-01-14T09:15:00',
-            updatedAt: '2024-01-14T09:15:00',
-            messages: [
-              {
-                id: 1,
-                ticketId: 2,
-                sender: 'customer',
-                message: 'The labor charges seem higher than estimated.',
-                timestamp: '2024-01-14T09:15:00'
-              }
-            ]
-          },
-          {
-            id: 3,
-            subject: 'Service Completed Successfully',
-            category: 'feedback',
-            priority: 'low',
-            status: 'resolved',
-            description: 'Great service! The technician was very professional.',
-            createdAt: '2024-01-10T16:45:00',
-            updatedAt: '2024-01-11T10:20:00',
-            messages: [
-              {
-                id: 1,
-                ticketId: 3,
-                sender: 'customer',
-                message: 'Thank you for the excellent service!',
-                timestamp: '2024-01-10T16:45:00'
-              },
-              {
-                id: 2,
-                ticketId: 3,
-                sender: 'support',
-                message: 'Thank you for your feedback! We\'re glad to hear you had a good experience.',
-                timestamp: '2024-01-11T10:20:00'
-              }
-            ]
-          }
-        ];
+      // Fetch support tickets
+      const ticketsResponse = await fetch('/api/customer/support/tickets');
+      if (ticketsResponse.ok) {
+        const ticketsResult = await ticketsResponse.json();
+        setSupportTickets(ticketsResult.tickets || []);
+      }
 
-        const mockAIChat: AIChat[] = [
-          {
-            id: 1,
-            question: 'How do I book a service?',
-            answer: 'You can book a service through our website or mobile app. Go to the "Book Service" section, select your vehicle, choose the service type, and pick your preferred date and time. You can also call us directly at 03-1234 5678.',
-            timestamp: '2024-01-16T09:30:00'
-          }
-        ];
+      // Fetch AI chat history
+      const chatResponse = await fetch('/api/customer/support/ai-chat');
+      if (chatResponse.ok) {
+        const chatResult = await chatResponse.json();
+        setAiChatHistory(chatResult.chats || []);
+      }
 
-        setSupportTickets(mockTickets);
-        setAiChatHistory(mockAIChat);
-        setIsLoading(false);
-      }, 1000);
-    };
-
-    fetchData();
-  }, []);
+    } catch (error) {
+      console.error('Error fetching support data:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Scroll to bottom of chat
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [aiChatHistory]);
 
-  // Simulate AI response using Ollama API
+  // Real Ollama API integration
   const sendToOllama = async (message: string): Promise<string> => {
-    // This is where you would integrate with your local Ollama API
-    // For demo purposes, we'll simulate AI responses
-    
-    const responses = {
-      'hello': 'Hello! I\'m your ChengService AI assistant. How can I help you with your vehicle service today?',
-      'hi': 'Hi there! I\'m here to help with any questions about your vehicle services, bookings, or general inquiries.',
-      'service': 'We offer various services including regular maintenance, brake service, AC service, tire rotation, full service, engine diagnostics, and more. Which service are you interested in?',
-      'booking': 'You can book a service through our website, mobile app, or by calling us. Would you like me to guide you through the booking process?',
-      'price': 'Service costs vary based on the type of service and your vehicle model. Basic services start from RM 50, while comprehensive services can range from RM 150-500. Would you like a specific quote?',
-      'time': 'Most services take 1-4 hours depending on complexity. Basic maintenance usually takes 1-2 hours, while major services may take 3-4 hours or more.',
-      'emergency': 'For emergency services, please call our hotline at 03-1234 5678. We provide 24/7 emergency support for breakdowns and urgent repairs.',
-      'warranty': 'We offer a 6-month warranty on all our services and a 12-month warranty on replaced parts. All warranties are covered by our service guarantee.',
-      'default': 'I understand you\'re asking about vehicle services. At ChengService, we provide comprehensive auto care including maintenance, repairs, and diagnostics. Could you please provide more specific details about what you need help with?'
-    };
+    try {
+      const response = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          context: "You are a helpful AI assistant for CARVO Auto Service in Malaysia. Provide friendly, professional responses about vehicle services, bookings, pricing, and general automotive advice. Keep responses concise but helpful."
+        }),
+      });
 
-    const lowerMessage = message.toLowerCase();
-    
-    for (const [key, response] of Object.entries(responses)) {
-      if (lowerMessage.includes(key) && key !== 'default') {
-        return response;
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
       }
+
+      const data = await response.json();
+      return data.response;
+
+    } catch (error) {
+      console.error('Ollama API error:', error);
+      throw new Error('Unable to connect to AI service. Please try again later.');
     }
-    
-    return responses.default;
   };
 
   const handleSendMessage = async () => {
@@ -275,23 +205,55 @@ const CustomerSupport: React.FC = () => {
     setUserMessage('');
 
     try {
-      // Simulate API call to Ollama
+      // Save user message to database
+      await fetch('/api/customer/support/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: currentMessage,
+          type: 'user'
+        }),
+      });
+
+      // Get AI response from Ollama
       const aiResponse = await sendToOllama(currentMessage);
       
       // Update the last message with AI response
+      const updatedChat = {
+        ...userChat,
+        answer: aiResponse
+      };
+
       setAiChatHistory(prev => 
         prev.map(chat => 
-          chat.id === userChat.id 
-            ? { ...chat, answer: aiResponse }
-            : chat
+          chat.id === userChat.id ? updatedChat : chat
         )
       );
+
+      // Save AI response to database
+      await fetch('/api/customer/support/ai-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: currentMessage,
+          answer: aiResponse,
+          type: 'ai'
+        }),
+      });
+
     } catch (error) {
       console.error('Error getting AI response:', error);
       setAiChatHistory(prev => 
         prev.map(chat => 
           chat.id === userChat.id 
-            ? { ...chat, answer: 'Sorry, I\'m having trouble responding right now. Please try again later or contact our support team directly.' }
+            ? { 
+                ...chat, 
+                answer: 'Sorry, I\'m having trouble responding right now. Please try again later or contact our support team directly at 03-1234 5678.' 
+              }
             : chat
         )
       );
@@ -300,41 +262,42 @@ const CustomerSupport: React.FC = () => {
     }
   };
 
-  const handleCreateTicket = () => {
+  const handleCreateTicket = async () => {
     if (!newTicket.subject || !newTicket.description) {
       alert('Please fill in all required fields');
       return;
     }
 
-    const ticket: SupportTicket = {
-      id: supportTickets.length + 1,
-      subject: newTicket.subject,
-      category: newTicket.category,
-      priority: newTicket.priority,
-      status: 'open',
-      description: newTicket.description,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      messages: [
-        {
-          id: 1,
-          ticketId: supportTickets.length + 1,
-          sender: 'customer',
-          message: newTicket.description,
-          timestamp: new Date().toISOString()
-        }
-      ]
-    };
+    try {
+      const response = await fetch('/api/customer/support/tickets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newTicket),
+      });
 
-    setSupportTickets(prev => [ticket, ...prev]);
-    setNewTicket({
-      subject: '',
-      category: 'general',
-      priority: 'medium',
-      description: ''
-    });
-    setIsCreatingTicket(false);
-    setActiveTab('tickets');
+      if (!response.ok) {
+        throw new Error('Failed to create ticket');
+      }
+
+      const result = await response.json();
+      
+      // Add new ticket to local state
+      setSupportTickets(prev => [result.ticket, ...prev]);
+      setNewTicket({
+        subject: '',
+        category: 'general',
+        priority: 'medium',
+        description: ''
+      });
+      setIsCreatingTicket(false);
+      setActiveTab('tickets');
+
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      alert('Failed to create support ticket. Please try again.');
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -366,7 +329,7 @@ const CustomerSupport: React.FC = () => {
     });
   };
 
-  if (isLoading && aiChatHistory.length === 0) {
+  if (isLoading && aiChatHistory.length === 0 && supportTickets.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -442,7 +405,7 @@ const CustomerSupport: React.FC = () => {
                     <span className="text-white text-xl">🤖</span>
                   </div>
                   <div>
-                    <h3 className="text-white font-semibold text-lg">ChengService AI Assistant</h3>
+                    <h3 className="text-white font-semibold text-lg">CARVO AI Assistant</h3>
                     <p className="text-gray-400 text-sm">Powered by Ollama • Online</p>
                   </div>
                   <div className="ml-auto">
@@ -458,9 +421,10 @@ const CustomerSupport: React.FC = () => {
                 {aiChatHistory.length === 0 ? (
                   <div className="text-center py-12">
                     <div className="text-6xl mb-4">🤖</div>
-                    <h3 className="text-xl font-bold text-white mb-2">Hello! I'm your AI Assistant</h3>
+                    <h3 className="text-xl font-bold text-white mb-2">Hello! I'm your CARVO AI Assistant</h3>
                     <p className="text-gray-400">
                       Ask me about services, bookings, pricing, or any vehicle-related questions.
+                      I'm here to help 24/7!
                     </p>
                   </div>
                 ) : (
@@ -482,9 +446,9 @@ const CustomerSupport: React.FC = () => {
                           <div className="bg-gray-700/50 border border-gray-600/50 rounded-2xl rounded-bl-none p-4 max-w-[80%]">
                             <div className="flex items-center space-x-2 mb-2">
                               <span className="text-purple-400">🤖</span>
-                              <span className="text-purple-400 text-sm font-medium">AI Assistant</span>
+                              <span className="text-purple-400 text-sm font-medium">CARVO AI</span>
                             </div>
-                            <p className="text-white">{chat.answer}</p>
+                            <p className="text-white whitespace-pre-wrap">{chat.answer}</p>
                             <p className="text-gray-400 text-xs mt-2">
                               {formatDate(chat.timestamp)}
                             </p>
@@ -497,7 +461,11 @@ const CustomerSupport: React.FC = () => {
                 
                 {isLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-gray-700/50 border border-gray-600/50 rounded-2xl rounded-bl-none p-4">
+                    <div className="bg-gray-700/50 border border-gray-600/50 rounded-2xl rounded-bl-none p-4 max-w-[80%]">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="text-purple-400">🤖</span>
+                        <span className="text-purple-400 text-sm font-medium">CARVO AI</span>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
                         <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse delay-150"></div>
@@ -518,7 +486,7 @@ const CustomerSupport: React.FC = () => {
                     value={userMessage}
                     onChange={(e) => setUserMessage(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder="Ask about services, bookings, pricing..."
+                    placeholder="Ask about services, bookings, pricing, vehicle issues..."
                     className="flex-1 bg-gray-700/50 border border-gray-600 rounded-xl px-4 py-3 text-white placeholder-gray-400 focus:outline-none focus:border-amber-500"
                     disabled={isLoading}
                   />
@@ -547,12 +515,15 @@ const CustomerSupport: React.FC = () => {
                   'How do I book a service?',
                   'What are your service hours?',
                   'How much does a basic service cost?',
-                  'Do you provide emergency services?'
+                  'Do you provide emergency services?',
+                  'What should I do if my check engine light is on?',
+                  'How often should I service my car?'
                 ].map((question, index) => (
                   <button
                     key={index}
                     onClick={() => setUserMessage(question)}
-                    className="w-full text-left p-3 bg-gray-700/30 hover:bg-gray-700/50 rounded-xl text-gray-300 hover:text-white transition-all text-sm"
+                    disabled={isLoading}
+                    className="w-full text-left p-3 bg-gray-700/30 hover:bg-gray-700/50 rounded-xl text-gray-300 hover:text-white transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {question}
                   </button>
@@ -569,12 +540,26 @@ const CustomerSupport: React.FC = () => {
                 </div>
                 <div className="flex items-center space-x-3 text-sm">
                   <span className="text-amber-400">📧</span>
-                  <span className="text-white">support@chengservice.com</span>
+                  <span className="text-white">support@carvo.com</span>
                 </div>
                 <div className="flex items-center space-x-3 text-sm">
                   <span className="text-amber-400">🕒</span>
                   <span className="text-white">Mon-Sat: 8AM-6PM</span>
                 </div>
+                <div className="flex items-center space-x-3 text-sm">
+                  <span className="text-amber-400">🚨</span>
+                  <span className="text-white">Emergency: 24/7</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+              <h4 className="text-white font-semibold mb-4">⚡ Quick Tips</h4>
+              <div className="space-y-2 text-sm text-gray-300">
+                <p>• Be specific about your vehicle model and issue</p>
+                <p>• Have your booking ID ready for faster service</p>
+                <p>• Check FAQ for common questions</p>
+                <p>• For urgent issues, call us directly</p>
               </div>
             </div>
           </div>

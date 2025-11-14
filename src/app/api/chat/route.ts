@@ -1,53 +1,44 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(req: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const { message } = await req.json();
+    const { message, context } = await request.json();
 
-    const resp = await fetch("http://localhost:11434/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    // Ollama API endpoint (adjust to your local Ollama server)
+    const OLLAMA_URL = process.env.OLLAMA_URL || 'http://localhost:11434';
+    
+    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        model: "gemma:7b",
-        prompt: message,
-        stream: true, // 🚀 stream tokens
+        model: 'llama2', // or 'mistral', 'codellama', etc.
+        prompt: `${context}\n\nCustomer: ${message}\n\nAssistant:`,
+        stream: false,
+        options: {
+          temperature: 0.7,
+          top_p: 0.9,
+          max_tokens: 500,
+        }
       }),
     });
 
-    if (!resp.ok) {
-      return NextResponse.json({ error: "Failed to query Ollama" }, { status: resp.status });
+    if (!response.ok) {
+      throw new Error('Ollama API request failed');
     }
 
-    // Pass Ollama’s event stream to client
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = resp.body!.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n").filter((line) => line.trim() !== "");
-          for (const line of lines) {
-            try {
-              const data = JSON.parse(line);
-              if (data.response) {
-                controller.enqueue(encoder.encode(data.response));
-              }
-            } catch {}
-          }
-        }
-        controller.close();
-      },
+    const data = await response.json();
+    
+    return NextResponse.json({
+      response: data.response
     });
 
-    return new Response(stream, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-    });
   } catch (error) {
-    console.error("Ollama error:", error);
-    return NextResponse.json({ error: "AI request failed" }, { status: 500 });
+    console.error('Ollama chat error:', error);
+    return NextResponse.json(
+      { error: 'Failed to get AI response' },
+      { status: 500 }
+    );
   }
 }
