@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import VehicleManagement from './VehicleManagement';
 import BookingManagement from './BookingManagement';
 import ServiceHistory from './ServiceHistory';
@@ -11,10 +12,10 @@ interface CustomerVehicle {
   id: number;
   model: string;
   registrationNumber: string;
-  year: number;
-  type: string;
-  lastService?: string;
-  nextService?: string;
+  year: number | null;
+  type: string | null;
+  lastService: string | null;
+  nextService: string | null;
 }
 
 interface ServiceBooking {
@@ -22,116 +23,116 @@ interface ServiceBooking {
   vehicleId: number;
   bookingDate: string;
   status: 'Pending' | 'Confirmed' | 'In Progress' | 'Completed' | 'Cancelled';
-  reportedIssue: string;
-  estimatedCost: number;
+  reportedIssue: string | null;
+  estimatedCost: number | null;
   serviceStatus?: string;
-  completionDate?: string;
+  completionDate?: string | null;
   assignedWorker?: string;
+  vehicle: {
+    model: string;
+    registrationNumber: string;
+  };
+  service?: {
+    serviceStatus: string;
+    completionDate: string | null;
+    worker?: {
+      name: string;
+    };
+  };
 }
 
-interface ServiceHistory {
+interface ServiceHistoryItem {
   id: number;
   date: string;
   serviceType: string;
-  cost: number;
+  cost: number | null;
   status: string;
   vehicle: string;
-  workDone: string;
+  workDone: string | null;
+}
+
+interface CustomerData {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  address: string | null;
+  joinDate: string;
+  vehicles: CustomerVehicle[];
 }
 
 const CustomerDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
-  const [customerData, setCustomerData] = useState({
-    name: 'Ahmad bin Ismail',
-    email: 'ahmad@demo.com',
-    phone: '+60 12-345 6789',
-    address: '123 Jalan Seremban, Negeri Sembilan',
-    joinDate: '2023-05-15'
-  });
+  const [customerData, setCustomerData] = useState<CustomerData | null>(null);
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
   const [activeBookings, setActiveBookings] = useState<ServiceBooking[]>([]);
-  const [serviceHistory, setServiceHistory] = useState<ServiceHistory[]>([]);
+  const [serviceHistory, setServiceHistory] = useState<ServiceHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+  const router = useRouter();
 
   useEffect(() => {
-    // Simulate data fetching
-    setTimeout(() => {
-      setVehicles([
-        {
-          id: 1,
-          model: 'Toyota Vios',
-          registrationNumber: 'ABC1234',
-          year: 2020,
-          type: 'Sedan',
-          lastService: '2024-01-10',
-          nextService: '2024-04-10'
-        },
-        {
-          id: 2,
-          model: 'Honda City',
-          registrationNumber: 'XYZ5678',
-          year: 2019,
-          type: 'Sedan',
-          lastService: '2024-01-05',
-          nextService: '2024-04-05'
-        }
-      ]);
-
-      setActiveBookings([
-        {
-          id: 1,
-          vehicleId: 1,
-          bookingDate: '2024-01-15 09:00',
-          status: 'In Progress',
-          reportedIssue: 'Regular maintenance and oil change',
-          estimatedCost: 120,
-          serviceStatus: 'Diagnostics Complete',
-          assignedWorker: 'Ali bin Ahmad'
-        },
-        {
-          id: 2,
-          vehicleId: 2,
-          bookingDate: '2024-01-20 14:00',
-          status: 'Confirmed',
-          reportedIssue: 'Brake system inspection',
-          estimatedCost: 80,
-          serviceStatus: 'Scheduled'
-        }
-      ]);
-
-      setServiceHistory([
-        {
-          id: 1,
-          date: '2023-12-10',
-          serviceType: 'Full Service',
-          cost: 250,
-          status: 'Completed',
-          vehicle: 'Toyota Vios (ABC1234)',
-          workDone: 'Oil change, filter replacement, brake inspection'
-        },
-        {
-          id: 2,
-          date: '2023-11-05',
-          serviceType: 'Tire Rotation',
-          cost: 40,
-          status: 'Completed',
-          vehicle: 'Honda City (XYZ5678)',
-          workDone: 'Tire rotation and pressure check'
-        },
-        {
-          id: 3,
-          date: '2023-10-15',
-          serviceType: 'AC Service',
-          cost: 120,
-          status: 'Completed',
-          vehicle: 'Toyota Vios (ABC1234)',
-          workDone: 'AC gas refill and system check'
-        }
-      ]);
-
-      setIsLoading(false);
-    }, 1000);
+    fetchCustomerData();
   }, []);
+
+  const fetchCustomerData = async () => {
+    try {
+      setIsLoading(true);
+      setError('');
+
+      // Fetch customer profile
+      const customerResponse = await fetch('/api/customer/me');
+      if (!customerResponse.ok) {
+        if (customerResponse.status === 401) {
+          router.push('/login');
+          return;
+        }
+        throw new Error('Failed to fetch customer data');
+      }
+      
+      const customerResult = await customerResponse.json();
+      setCustomerData(customerResult.customer);
+      setVehicles(customerResult.customer.vehicles || []);
+
+      // Fetch active bookings
+      const bookingsResponse = await fetch('/api/customer/bookings?status=Pending,Confirmed,In Progress');
+      if (bookingsResponse.ok) {
+        const bookingsResult = await bookingsResponse.json();
+        setActiveBookings(bookingsResult.bookings || []);
+      }
+
+      // Fetch service history
+      const servicesResponse = await fetch('/api/customer/services');
+      if (servicesResponse.ok) {
+        const servicesResult = await servicesResponse.json();
+        const history = servicesResult.services.map((service: any) => ({
+          id: service.id,
+          date: service.completionDate || service.createdAt,
+          serviceType: service.serviceStatus,
+          cost: service.serviceCost,
+          status: service.serviceStatus,
+          vehicle: `${service.booking.vehicle.model} (${service.booking.vehicle.registrationNumber})`,
+          workDone: service.repairNotes
+        }));
+        setServiceHistory(history);
+      }
+
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   const StatusBadge = ({ status }: { status: string }) => {
     const getStatusColor = (status: string) => {
@@ -220,6 +221,37 @@ const CustomerDashboard: React.FC = () => {
     });
   };
 
+  if (isLoading && !customerData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-white text-lg">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !customerData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-red-400 text-lg mb-4">⚠️ {error}</div>
+          <button 
+            onClick={fetchCustomerData}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!customerData) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 to-black text-white">
       {/* Header */}
@@ -232,9 +264,9 @@ const CustomerDashboard: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-amber-400 to-amber-500 bg-clip-text text-transparent">
-                  ChengService Customer
+                  CARVO Customer Portal
                 </h1>
-                <p className="text-gray-400 text-sm">Auto Service Portal</p>
+                <p className="text-gray-400 text-sm">Chong Meng AutoService</p>
               </div>
             </div>
 
@@ -257,8 +289,17 @@ const CustomerDashboard: React.FC = () => {
                 </div>
                 <div className="hidden md:block text-right">
                   <p className="text-sm font-medium text-white">{customerData.name}</p>
-                  <p className="text-gray-400 text-xs">Customer since {new Date(customerData.joinDate).getFullYear()}</p>
+                  <p className="text-gray-400 text-xs">
+                    Customer since {new Date(customerData.joinDate).getFullYear()}
+                  </p>
                 </div>
+                <button 
+                  onClick={handleLogout}
+                  className="text-gray-400 hover:text-white transition-colors ml-2"
+                  title="Logout"
+                >
+                  🚪
+                </button>
               </div>
             </div>
           </div>
@@ -297,7 +338,7 @@ const CustomerDashboard: React.FC = () => {
                         Welcome back, {customerData.name}! 👋
                       </h2>
                       <p className="text-gray-400">
-                        Your vehicles are in good hands with ChengService AutoService experts.
+                        Your vehicles are in good hands with Chong Meng AutoService experts.
                       </p>
                     </div>
                     <div className="text-5xl">🚗</div>
@@ -334,18 +375,28 @@ const CustomerDashboard: React.FC = () => {
                         <span className="text-amber-400 mr-3">🔄</span>
                         Active Bookings
                       </h3>
-                      <Link
-                        href="/customer/bookings"
+                      <button
+                        onClick={() => setActiveTab('bookings')}
                         className="text-amber-400 hover:text-amber-300 text-sm font-medium transition-colors"
                       >
                         View All →
-                      </Link>
+                      </button>
                     </div>
 
                     <div className="space-y-4">
-                      {activeBookings.map((booking) => {
-                        const vehicle = vehicles.find(v => v.id === booking.vehicleId);
-                        return (
+                      {activeBookings.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                          <div className="text-4xl mb-2">📅</div>
+                          <p>No active bookings</p>
+                          <Link 
+                            href="/book-service"
+                            className="text-amber-400 hover:text-amber-300 text-sm"
+                          >
+                            Book your first service
+                          </Link>
+                        </div>
+                      ) : (
+                        activeBookings.map((booking) => (
                           <div
                             key={booking.id}
                             className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/30 hover:border-amber-500/30 transition-all duration-300"
@@ -353,45 +404,45 @@ const CustomerDashboard: React.FC = () => {
                             <div className="flex items-start justify-between mb-3">
                               <div>
                                 <h4 className="text-white font-semibold text-lg mb-1">
-                                  {vehicle?.model}
+                                  {booking.vehicle.model}
                                 </h4>
                                 <p className="text-gray-400 text-sm mb-2">
-                                  {vehicle?.registrationNumber}
+                                  {booking.vehicle.registrationNumber}
                                 </p>
                                 <StatusBadge status={booking.status} />
                               </div>
                               <div className="text-right">
                                 <p className="text-amber-400 font-bold text-xl">
-                                  RM {booking.estimatedCost}
+                                  RM {booking.estimatedCost || '0'}
                                 </p>
                               </div>
                             </div>
                             
                             <p className="text-gray-300 text-sm mb-3">
-                              {booking.reportedIssue}
+                              {booking.reportedIssue || 'No issue reported'}
                             </p>
                             
                             <div className="flex items-center justify-between text-sm">
                               <div className="text-gray-400">
                                 <span className="text-amber-400">📅</span> {new Date(booking.bookingDate).toLocaleDateString()} at {formatTime(booking.bookingDate)}
                               </div>
-                              {booking.assignedWorker && (
+                              {booking.service?.worker && (
                                 <div className="text-blue-400">
-                                  👨‍🔧 {booking.assignedWorker}
+                                  👨‍🔧 {booking.service.worker.name}
                                 </div>
                               )}
                             </div>
                             
-                            {booking.serviceStatus && (
+                            {booking.service?.serviceStatus && (
                               <div className="mt-3 p-2 bg-gray-600/30 rounded-lg">
                                 <p className="text-amber-400 text-sm">
-                                  🛠️ {booking.serviceStatus}
+                                  🛠️ {booking.service.serviceStatus}
                                 </p>
                               </div>
                             )}
                           </div>
-                        );
-                      })}
+                        ))
+                      )}
                     </div>
                   </div>
 
@@ -403,37 +454,44 @@ const CustomerDashboard: React.FC = () => {
                     </h3>
 
                     <div className="space-y-4">
-                      {serviceHistory.slice(0, 3).map((service) => (
-                        <div
-                          key={service.id}
-                          className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/30 hover:border-green-500/30 transition-all duration-300"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h4 className="text-white font-semibold mb-1">
-                                {service.serviceType}
-                              </h4>
-                              <p className="text-gray-400 text-sm">
-                                {service.vehicle}
-                              </p>
-                            </div>
-                            <StatusBadge status={service.status} />
-                          </div>
-                          
-                          <p className="text-gray-300 text-sm mb-2">
-                            {service.workDone}
-                          </p>
-                          
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-400">
-                              📅 {new Date(service.date).toLocaleDateString()}
-                            </span>
-                            <span className="text-green-400 font-semibold">
-                              RM {service.cost}
-                            </span>
-                          </div>
+                      {serviceHistory.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400">
+                          <div className="text-4xl mb-2">🔧</div>
+                          <p>No service history yet</p>
                         </div>
-                      ))}
+                      ) : (
+                        serviceHistory.slice(0, 3).map((service) => (
+                          <div
+                            key={service.id}
+                            className="p-4 bg-gray-700/30 rounded-xl border border-gray-600/30 hover:border-green-500/30 transition-all duration-300"
+                          >
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <h4 className="text-white font-semibold mb-1">
+                                  {service.serviceType}
+                                </h4>
+                                <p className="text-gray-400 text-sm">
+                                  {service.vehicle}
+                                </p>
+                              </div>
+                              <StatusBadge status={service.status} />
+                            </div>
+                            
+                            <p className="text-gray-300 text-sm mb-2">
+                              {service.workDone || 'No details available'}
+                            </p>
+                            
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-400">
+                                📅 {new Date(service.date).toLocaleDateString()}
+                              </span>
+                              <span className="text-green-400 font-semibold">
+                                RM {service.cost || '0'}
+                              </span>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
                 </div>
@@ -452,25 +510,23 @@ const CustomerDashboard: React.FC = () => {
                       <span className="text-xl">📅</span>
                       <span>Book New Service</span>
                     </Link>
-                    <button className="bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-xl font-semibold transition-all border border-gray-600 flex items-center justify-center space-x-3">
+                    <button 
+                      onClick={() => setActiveTab('vehicles')}
+                      className="bg-gray-700 hover:bg-gray-600 text-white py-4 px-6 rounded-xl font-semibold transition-all border border-gray-600 flex items-center justify-center space-x-3"
+                    >
                       <span className="text-xl">🚗</span>
-                      <span>Add New Vehicle</span>
+                      <span>Manage Vehicles</span>
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            
-
+            {/* Other tabs */}
             {activeTab === "bookings" && <BookingManagement />}
-
             {activeTab === "history" && <ServiceHistory />}
-
             {activeTab === "profile" && <Profile />}
-            
             {activeTab === "support" && <CustomerSupport />}
-
             {activeTab === "vehicles" && <VehicleManagement />}
           </main>
         </div>

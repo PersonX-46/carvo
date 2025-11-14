@@ -1,35 +1,37 @@
-'use client'
+"use client";
 // components/Register.tsx
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState } from "react";
+import Link from "next/link";
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    address: '',
-    password: '',
-    confirmPassword: '',
-    vehicleModel: '',
-    registrationNumber: '',
-    vehicleYear: '',
-    vehicleType: ''
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    password: "",
+    confirmPassword: "",
+    vehicleModel: "",
+    registrationNumber: "",
+    vehicleYear: "",
+    vehicleType: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
     // Clear error when user starts typing
     if (errors[name]) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        [name]: ''
+        [name]: "",
       }));
     }
   };
@@ -37,17 +39,22 @@ const Register: React.FC = () => {
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.name.trim()) newErrors.name = 'Name is required';
-    if (!formData.email.trim()) newErrors.email = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(formData.email)) newErrors.email = 'Email is invalid';
-    
-    if (!formData.phone.trim()) newErrors.phone = 'Phone number is required';
-    if (!formData.password) newErrors.password = 'Password is required';
-    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    
-    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = 'Passwords do not match';
-    if (!formData.vehicleModel.trim()) newErrors.vehicleModel = 'Vehicle model is required';
-    if (!formData.registrationNumber.trim()) newErrors.registrationNumber = 'Registration number is required';
+    if (!formData.name.trim()) newErrors.name = "Name is required";
+    if (!formData.email.trim()) newErrors.email = "Email is required";
+    else if (!/\S+@\S+\.\S+/.test(formData.email))
+      newErrors.email = "Email is invalid";
+
+    if (!formData.phone.trim()) newErrors.phone = "Phone number is required";
+    if (!formData.password) newErrors.password = "Password is required";
+    else if (formData.password.length < 6)
+      newErrors.password = "Password must be at least 6 characters";
+
+    if (formData.password !== formData.confirmPassword)
+      newErrors.confirmPassword = "Passwords do not match";
+    if (!formData.vehicleModel.trim())
+      newErrors.vehicleModel = "Vehicle model is required";
+    if (!formData.registrationNumber.trim())
+      newErrors.registrationNumber = "Registration number is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -55,18 +62,37 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateForm()) return;
 
     setIsLoading(true);
-    
-    // Simulate registration process
-    setTimeout(() => {
+
+    try {
+      const response = await fetch("/api/customer/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log("Registration successful:", data);
+        // Redirect to login or show success message
+        alert("Registration successful! You can now login.");
+        // You can redirect to login page
+        // router.push('/login');
+      } else {
+        setErrors({ submit: data.error || "Registration failed" });
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      setErrors({ submit: "Network error. Please try again." });
+    } finally {
       setIsLoading(false);
-      // Handle registration logic here
-      console.log('Customer Registration:', formData);
-      // Redirect to login or dashboard
-    }, 2000);
+    }
   };
 
   const currentYear = new Date().getFullYear();
@@ -76,12 +102,12 @@ const Register: React.FC = () => {
     <section className="min-h-screen bg-black relative overflow-hidden flex items-center justify-center py-4 xs:py-6 sm:py-8 lg:py-12">
       {/* Grid Background */}
       <div className="absolute inset-0 opacity-5">
-        <div 
+        <div
           className="absolute inset-0"
           style={{
             backgroundImage: `linear-gradient(#fbbf24 1px, transparent 1px),
                              linear-gradient(90deg, #fbbf24 1px, transparent 1px)`,
-            backgroundSize: '30px 30px',
+            backgroundSize: "30px 30px",
           }}
         />
       </div>
@@ -92,7 +118,9 @@ const Register: React.FC = () => {
           <div
             key={i}
             className={`absolute rounded-full animate-float hidden sm:block ${
-              i % 2 === 0 ? 'bg-gradient-to-r from-yellow-400/10 to-amber-500/10' : 'bg-gradient-to-r from-amber-400/10 to-yellow-500/10'
+              i % 2 === 0
+                ? "bg-gradient-to-r from-yellow-400/10 to-amber-500/10"
+                : "bg-gradient-to-r from-amber-400/10 to-yellow-500/10"
             }`}
             style={{
               width: `${Math.random() * 50 + 25}px`,
@@ -101,7 +129,7 @@ const Register: React.FC = () => {
               top: `${Math.random() * 100}%`,
               animationDelay: `${Math.random() * 15}s`,
               animationDuration: `${Math.random() * 25 + 25}s`,
-              filter: 'blur(20px)',
+              filter: "blur(20px)",
             }}
           />
         ))}
@@ -114,14 +142,20 @@ const Register: React.FC = () => {
           <div className="text-center mb-6 sm:mb-8">
             <div className="flex justify-center mb-3 sm:mb-4">
               <div className="w-12 h-12 xs:w-14 xs:h-14 sm:w-16 sm:h-16 bg-gradient-to-r from-yellow-500 to-amber-600 rounded-lg xs:rounded-xl sm:rounded-2xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-xl xs:text-2xl sm:text-3xl">C</span>
+                <span className="text-white font-bold text-xl xs:text-2xl sm:text-3xl">
+                  C
+                </span>
               </div>
             </div>
             <h1 className="text-xl xs:text-2xl sm:text-3xl font-bold text-white mb-2">
-              Create <span className="bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">Customer Account</span>
+              Create{" "}
+              <span className="bg-gradient-to-r from-yellow-400 to-amber-500 bg-clip-text text-transparent">
+                Customer Account
+              </span>
             </h1>
             <p className="text-gray-400 text-xs xs:text-sm">
-              Register to book services and track your vehicle at Chong Meng AutoService
+              Register to book services and track your vehicle at Chong Meng
+              AutoService
             </p>
           </div>
 
@@ -134,10 +168,13 @@ const Register: React.FC = () => {
                   <span className="mr-2">👤</span>
                   Personal Information
                 </h3>
-                
+
                 <div className="space-y-3 xs:space-y-4">
                   <div>
-                    <label htmlFor="name" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="name"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Full Name *
                     </label>
                     <input
@@ -147,16 +184,23 @@ const Register: React.FC = () => {
                       value={formData.name}
                       onChange={handleChange}
                       className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                        errors.name ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                        errors.name
+                          ? "border-red-500"
+                          : "border-gray-700 focus:border-amber-500"
                       }`}
                       placeholder="Enter your full name"
                       required
                     />
-                    {errors.name && <p className="text-red-400 text-xs mt-1">{errors.name}</p>}
+                    {errors.name && (
+                      <p className="text-red-400 text-xs mt-1">{errors.name}</p>
+                    )}
                   </div>
 
                   <div>
-                    <label htmlFor="email" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="email"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Email Address *
                     </label>
                     <input
@@ -166,16 +210,25 @@ const Register: React.FC = () => {
                       value={formData.email}
                       onChange={handleChange}
                       className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                        errors.email ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                        errors.email
+                          ? "border-red-500"
+                          : "border-gray-700 focus:border-amber-500"
                       }`}
                       placeholder="Enter your email"
                       required
                     />
-                    {errors.email && <p className="text-red-400 text-xs mt-1">{errors.email}</p>}
+                    {errors.email && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {errors.email}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label htmlFor="phone" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="phone"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Phone Number *
                     </label>
                     <input
@@ -185,16 +238,25 @@ const Register: React.FC = () => {
                       value={formData.phone}
                       onChange={handleChange}
                       className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                        errors.phone ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                        errors.phone
+                          ? "border-red-500"
+                          : "border-gray-700 focus:border-amber-500"
                       }`}
                       placeholder="Enter your phone number"
                       required
                     />
-                    {errors.phone && <p className="text-red-400 text-xs mt-1">{errors.phone}</p>}
+                    {errors.phone && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {errors.phone}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label htmlFor="address" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="address"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Address
                     </label>
                     <input
@@ -216,10 +278,13 @@ const Register: React.FC = () => {
                   <span className="mr-2">🚗</span>
                   Vehicle Information
                 </h3>
-                
+
                 <div className="space-y-3 xs:space-y-4">
                   <div>
-                    <label htmlFor="vehicleModel" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="vehicleModel"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Vehicle Model *
                     </label>
                     <input
@@ -229,16 +294,25 @@ const Register: React.FC = () => {
                       value={formData.vehicleModel}
                       onChange={handleChange}
                       className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                        errors.vehicleModel ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                        errors.vehicleModel
+                          ? "border-red-500"
+                          : "border-gray-700 focus:border-amber-500"
                       }`}
                       placeholder="e.g., Toyota Vios, Honda City"
                       required
                     />
-                    {errors.vehicleModel && <p className="text-red-400 text-xs mt-1">{errors.vehicleModel}</p>}
+                    {errors.vehicleModel && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {errors.vehicleModel}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label htmlFor="registrationNumber" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                    <label
+                      htmlFor="registrationNumber"
+                      className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                    >
                       Registration Number *
                     </label>
                     <input
@@ -248,17 +322,26 @@ const Register: React.FC = () => {
                       value={formData.registrationNumber}
                       onChange={handleChange}
                       className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                        errors.registrationNumber ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                        errors.registrationNumber
+                          ? "border-red-500"
+                          : "border-gray-700 focus:border-amber-500"
                       }`}
                       placeholder="e.g., ABC1234"
                       required
                     />
-                    {errors.registrationNumber && <p className="text-red-400 text-xs mt-1">{errors.registrationNumber}</p>}
+                    {errors.registrationNumber && (
+                      <p className="text-red-400 text-xs mt-1">
+                        {errors.registrationNumber}
+                      </p>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3 xs:gap-4">
                     <div>
-                      <label htmlFor="vehicleYear" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                      <label
+                        htmlFor="vehicleYear"
+                        className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                      >
                         Year
                       </label>
                       <select
@@ -269,14 +352,19 @@ const Register: React.FC = () => {
                         className="w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border border-gray-700 rounded-lg xs:rounded-xl text-white focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors text-sm"
                       >
                         <option value="">Select Year</option>
-                        {yearOptions.map(year => (
-                          <option key={year} value={year}>{year}</option>
+                        {yearOptions.map((year) => (
+                          <option key={year} value={year}>
+                            {year}
+                          </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
-                      <label htmlFor="vehicleType" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                      <label
+                        htmlFor="vehicleType"
+                        className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                      >
                         Type
                       </label>
                       <select
@@ -306,10 +394,13 @@ const Register: React.FC = () => {
                 <span className="mr-2">🔒</span>
                 Account Security
               </h3>
-              
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 xs:gap-5">
                 <div>
-                  <label htmlFor="password" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                  <label
+                    htmlFor="password"
+                    className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                  >
                     Password *
                   </label>
                   <input
@@ -319,16 +410,25 @@ const Register: React.FC = () => {
                     value={formData.password}
                     onChange={handleChange}
                     className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                      errors.password ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                      errors.password
+                        ? "border-red-500"
+                        : "border-gray-700 focus:border-amber-500"
                     }`}
                     placeholder="Enter your password"
                     required
                   />
-                  {errors.password && <p className="text-red-400 text-xs mt-1">{errors.password}</p>}
+                  {errors.password && (
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.password}
+                    </p>
+                  )}
                 </div>
 
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2">
+                  <label
+                    htmlFor="confirmPassword"
+                    className="block text-xs xs:text-sm font-medium text-gray-300 mb-1 xs:mb-2"
+                  >
                     Confirm Password *
                   </label>
                   <input
@@ -338,12 +438,18 @@ const Register: React.FC = () => {
                     value={formData.confirmPassword}
                     onChange={handleChange}
                     className={`w-full px-3 xs:px-4 py-2 xs:py-3 bg-gray-800/50 border rounded-lg xs:rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-amber-500 transition-colors text-sm ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-gray-700 focus:border-amber-500'
+                      errors.confirmPassword
+                        ? "border-red-500"
+                        : "border-gray-700 focus:border-amber-500"
                     }`}
                     placeholder="Confirm your password"
                     required
                   />
-                  {errors.confirmPassword && <p className="text-red-400 text-xs mt-1">{errors.confirmPassword}</p>}
+                  {errors.confirmPassword && (
+                    <p className="text-red-400 text-xs mt-1">
+                      {errors.confirmPassword}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -357,10 +463,12 @@ const Register: React.FC = () => {
               {isLoading ? (
                 <>
                   <div className="w-4 h-4 xs:w-5 xs:h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  <span className="text-xs xs:text-sm">Creating Account...</span>
+                  <span className="text-xs xs:text-sm">
+                    Creating Account...
+                  </span>
                 </>
               ) : (
-                'Create Customer Account'
+                "Create Customer Account"
               )}
             </button>
           </form>
@@ -368,9 +476,9 @@ const Register: React.FC = () => {
           {/* Login Link */}
           <div className="mt-4 xs:mt-5 sm:mt-6 text-center">
             <p className="text-gray-400 text-xs xs:text-sm">
-              Already have an account?{' '}
-              <Link 
-                href="/login" 
+              Already have an account?{" "}
+              <Link
+                href="/login"
                 className="text-amber-400 hover:text-amber-300 font-semibold transition-colors"
               >
                 Sign in here
@@ -380,8 +488,8 @@ const Register: React.FC = () => {
 
           {/* Back to Home */}
           <div className="mt-4 xs:mt-5 text-center">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="inline-flex items-center text-xs xs:text-sm text-gray-400 hover:text-white transition-colors"
             >
               <span className="mr-1 xs:mr-2">←</span>
@@ -394,18 +502,29 @@ const Register: React.FC = () => {
         <div className="mt-4 xs:mt-5 sm:mt-6 text-center">
           <div className="inline-flex items-center space-x-1 xs:space-x-2 bg-gray-800/30 backdrop-blur-sm rounded-full px-3 xs:px-4 py-1 xs:py-2 border border-amber-500/20">
             <span className="text-amber-400 text-xs xs:text-sm">🏢</span>
-            <span className="text-gray-300 text-xs xs:text-sm">Chong Meng AutoService Seremban</span>
+            <span className="text-gray-300 text-xs xs:text-sm">
+              Chong Meng AutoService Seremban
+            </span>
           </div>
         </div>
       </div>
 
       <style jsx>{`
         @keyframes float {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          33% { transform: translateY(-8px) rotate(120deg); }
-          66% { transform: translateY(4px) rotate(240deg); }
+          0%,
+          100% {
+            transform: translateY(0px) rotate(0deg);
+          }
+          33% {
+            transform: translateY(-8px) rotate(120deg);
+          }
+          66% {
+            transform: translateY(4px) rotate(240deg);
+          }
         }
-        .animate-float { animation: float 35s ease-in-out infinite; }
+        .animate-float {
+          animation: float 35s ease-in-out infinite;
+        }
       `}</style>
     </section>
   );
