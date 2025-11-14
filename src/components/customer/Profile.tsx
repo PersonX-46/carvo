@@ -675,7 +675,7 @@ const Profile: React.FC<ProfileProps> = ({ customerData: initialCustomerData }) 
                 )}
 
                 <div className="bg-gray-700/30 rounded-xl p-6">
-                  <h4 className="text-white font-semibold mb-2 text-red-400">Danger Zone</h4>
+                  <h4 className="font-semibold mb-2 text-red-400">Danger Zone</h4>
                   <p className="text-gray-400 text-sm mb-4">
                     Once you delete your account, there is no going back. Please be certain.
                   </p>
