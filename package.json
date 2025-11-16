@@ -6,7 +6,8 @@
     "dev": "next dev --turbopack",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "create-admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
@@ -14,9 +15,9 @@
     "@react-three/fiber": "^9.3.0",
     "bcryptjs": "^3.0.3",
     "jsonwebtoken": "^9.0.2",
-    "next": "15.5.4",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
+    "next": "^16.0.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "three": "^0.180.0"
   },
   "devDependencies": {
@@ -30,6 +31,7 @@
     "eslint-config-next": "15.5.4",
     "prisma": "^6.16.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }

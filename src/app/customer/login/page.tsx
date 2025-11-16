@@ -1,5 +1,5 @@
-import CustomerLogin from "@/components/customer/Login";
-import NavBar from "@/components/NavBar";
+import CustomerLogin from "@/app/components/customer/Login";
+import NavBar from "@/app/components/NavBar";
 
 export default function Page() {
     return <>

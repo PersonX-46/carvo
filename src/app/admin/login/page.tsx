@@ -1,5 +1,5 @@
-import AdminLogin from "@/components/admin/Login";
-import NavBar from "@/components/NavBar";
+import AdminLogin from "@/app/components/admin/Login";
+import NavBar from "@/app/components/NavBar";
 
 export default function Page() {
     return <>

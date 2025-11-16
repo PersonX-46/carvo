@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@prisma/client';
-import { getCurrentUser } from '../../../../../lib/auth';
+import { getCurrentUser } from '../../../../lib/auth';
 
 const prisma = new PrismaClient();
 
@@ -31,12 +31,7 @@ export async function PUT(request: NextRequest) {
       data: {
         name,
         phone,
-        address,
-        emergencyContact,
-        preferredCommunication,
-        marketingEmails,
-        serviceReminders,
-        language
+        address
       },
       select: {
         id: true,
@@ -45,12 +40,7 @@ export async function PUT(request: NextRequest) {
         phone: true,
         address: true,
         joinDate: true,
-        createdAt: true,
-        emergencyContact: true,
-        preferredCommunication: true,
-        marketingEmails: true,
-        serviceReminders: true,
-        language: true
+        createdAt: true
       }
     });
 
