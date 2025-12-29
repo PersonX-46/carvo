@@ -351,7 +351,7 @@ const Profile: React.FC<ProfileProps> = ({
               </div>
               <div className="bg-gray-700/30 rounded-xl p-3">
                 <p className="text-amber-400 text-sm font-medium">
-                  🎉 {getMembershipDuration(profile.joinDate)} with CARVO
+                  🎉 {getMembershipDuration(profile.joinDate)} with ChengService
                 </p>
               </div>
             </div>

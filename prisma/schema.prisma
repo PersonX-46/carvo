@@ -8,203 +8,210 @@ datasource db {
 }
 
 model Customer {
-  id              Int        @id @default(autoincrement())
-  name            String
-  email           String     @unique
-  password        String
-  phone           String
-  address         String?
-  joinDate        DateTime   @default(now())
-  vehicles        Vehicle[]
-  bookings        Booking[]
-  serviceReports  Report[]
-  feedback        Feedback[]
-  supportTickets  SupportTicket[]
-  aiChats         AIChat[]
-  createdAt       DateTime   @default(now())
+  id             Int             @id @default(autoincrement())
+  name           String
+  email          String          @unique
+  password       String
+  phone          String
+  address        String?
+  joinDate       DateTime        @default(now())
+  vehicles       Vehicle[]
+  bookings       Booking[]
+  serviceReports Report[]
+  feedback       Feedback[]
+  supportTickets SupportTicket[]
+  aiChats        AIChat[]
+  createdAt      DateTime        @default(now())
 }
 
 model Admin {
-  id              Int        @id @default(autoincrement())
-  name            String
-  email           String     @unique
-  password        String
-  phone           String?
-  reports         Report[]
-  finances        Finance[]
-  createdAt       DateTime   @default(now())
+  id        Int       @id @default(autoincrement())
+  name      String
+  email     String    @unique
+  password  String
+  phone     String?
+  reports   Report[]
+  finances  Finance[]
+  createdAt DateTime  @default(now())
 }
 
 model Worker {
-  id              Int        @id @default(autoincrement())
+  id              Int       @id @default(autoincrement())
   name            String
-  email           String     @unique
+  email           String    @unique
   password        String
   position        String
   phone           String?
-  status          String     @default("active") // active, inactive, on_leave
-  specialization  String?    // JSON string or comma-separated values
+  status          String    @default("active") // active, inactive, on_leave
+  specialization  String? // JSON string or comma-separated values
   salary          Float?
-  hireDate        DateTime   @default(now())
-  totalServices   Int        @default(0)
-  currentWorkload Int        @default(0)
-  rating          Float?     @default(0.0)
+  hireDate        DateTime  @default(now())
+  totalServices   Int       @default(0)
+  currentWorkload Int       @default(0)
+  rating          Float?    @default(0.0)
   services        Service[]
   serviceReports  Report[]
-  createdAt       DateTime   @default(now())
+  createdAt       DateTime  @default(now())
 }
 
 model Service {
-  id              Int        @id @default(autoincrement())
-  bookingId       Int        @unique
-  workerId        Int?
-  serviceStatus   String     @default("Pending")
-  repairNotes     String?
-  serviceCost     Float?
-  spareParts      String?
-  completionDate  DateTime?
-  duration        Float?     @default(1.0) // Duration in hours
-  booking         Booking    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  worker          Worker?    @relation(fields: [workerId], references: [id])
-  createdAt       DateTime   @default(now())
+  id             Int       @id @default(autoincrement())
+  bookingId      Int       @unique
+  workerId       Int?
+  serviceStatus  String    @default("Pending")
+  repairNotes    String?
+  serviceCost    Float?
+  spareParts     String?
+  completionDate DateTime?
+  duration       Float?    @default(1.0) // Duration in hours
+  booking        Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  worker         Worker?   @relation(fields: [workerId], references: [id])
+  createdAt      DateTime  @default(now())
 }
 
 model Vehicle {
-  id                  Int        @id @default(autoincrement())
-  customerId          Int
-  model               String
-  registrationNumber  String     @unique
-  year                Int?
-  type                String?
-  color               String?
-  engineCapacity      String?
-  mileage             Int?
-  insuranceExpiry     DateTime?
-  roadTaxExpiry       DateTime?
-  lastService         DateTime?
-  nextService         DateTime?
-  customer            Customer   @relation(fields: [customerId], references: [id])
-  bookings            Booking[]
-  createdAt           DateTime   @default(now())
+  id                 Int       @id @default(autoincrement())
+  customerId         Int
+  model              String
+  registrationNumber String    @unique
+  year               Int?
+  type               String?
+  color              String?
+  engineCapacity     String?
+  mileage            Int?
+  insuranceExpiry    DateTime?
+  roadTaxExpiry      DateTime?
+  lastService        DateTime?
+  nextService        DateTime?
+  customer           Customer  @relation(fields: [customerId], references: [id])
+  bookings           Booking[]
+  createdAt          DateTime  @default(now())
 }
 
+// Add to your Booking model
 model Booking {
-  id              Int        @id @default(autoincrement())
-  customerId      Int
-  vehicleId       Int
-  serviceId       Int?       @unique
-  bookingDate     DateTime
-  status          String     @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled
-  reportedIssue   String?
-  estimatedCost   Float?
-  confirmed       Boolean    @default(false)
-  duration        Float?     @default(1.0) // Duration in hours
-  customer        Customer   @relation(fields: [customerId], references: [id])
-  vehicle         Vehicle    @relation(fields: [vehicleId], references: [id])
-  service         Service?   // Remove the @relation attribute here
-  createdAt       DateTime   @default(now())
+  id            Int      @id @default(autoincrement())
+  workerId      Int?
+  customerId    Int
+  vehicleId     Int
+  serviceId     Int?     @unique
+  bookingDate   DateTime
+  status        String   @default("Pending")
+  reportedIssue String?
+  estimatedCost Float?
+  confirmed     Boolean  @default(false)
+  duration      Float?   @default(1.0)
+
+  priceApproved   Boolean? @default(false)
+  priceRejected   Boolean? @default(false)
+  rejectionReason String?
+
+  customer  Customer @relation(fields: [customerId], references: [id])
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
+  service   Service?
+  createdAt DateTime @default(now())
 }
 
 model Stock {
-  id              Int        @id @default(autoincrement())
+  id              Int             @id @default(autoincrement())
   itemName        String
   category        String?
-  quantity        Int        @default(0)
+  quantity        Int             @default(0)
   unitPrice       Float?
-  minStockLevel   Int        @default(5)
+  minStockLevel   Int             @default(5)
   supplier        String?
   supplierContact String?
   location        String?
   notes           String?
   lastRestocked   DateTime?
-  updatedAt       DateTime   @default(now())
+  updatedAt       DateTime        @default(now())
   movements       StockMovement[]
 }
 
 model StockMovement {
-  id              Int        @id @default(autoincrement())
-  stockItemId     Int
-  type            String     // 'in' or 'out'
-  quantity        Int
-  reason          String
-  date            DateTime   @default(now())
-  performedBy     String
-  reference       String?
-  stockItem       Stock      @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
-  createdAt       DateTime   @default(now())
+  id          Int      @id @default(autoincrement())
+  stockItemId Int
+  type        String // 'in' or 'out'
+  quantity    Int
+  reason      String
+  date        DateTime @default(now())
+  performedBy String
+  reference   String?
+  stockItem   Stock    @relation(fields: [stockItemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
 }
 
 model Report {
-  id              Int        @id @default(autoincrement())
-  type            String     // financial, service, inventory, customer, worker
-  title           String
-  description     String?
-  dateRange       String?
-  generatedBy     String
-  status          String     @default("completed") // completed, generating, failed
-  downloadUrl     String?
-  data            String?    // JSON string for report data
-  customerId      Int?
-  workerId        Int?
-  adminId         Int?
-  customer        Customer?  @relation(fields: [customerId], references: [id])
-  worker          Worker?    @relation(fields: [workerId], references: [id])
-  admin           Admin?     @relation(fields: [adminId], references: [id])
-  createdAt       DateTime   @default(now())
+  id          Int       @id @default(autoincrement())
+  type        String // financial, service, inventory, customer, worker
+  title       String
+  description String?
+  dateRange   String?
+  generatedBy String
+  status      String    @default("completed") // completed, generating, failed
+  downloadUrl String?
+  data        String? // JSON string for report data
+  customerId  Int?
+  workerId    Int?
+  adminId     Int?
+  customer    Customer? @relation(fields: [customerId], references: [id])
+  worker      Worker?   @relation(fields: [workerId], references: [id])
+  admin       Admin?    @relation(fields: [adminId], references: [id])
+  createdAt   DateTime  @default(now())
 }
 
 model Finance {
-  id              Int        @id @default(autoincrement())
-  adminId         Int
-  amount          Float
-  category        String
-  date            DateTime   @default(now())
-  notes           String?
-  admin           Admin      @relation(fields: [adminId], references: [id])
-  createdAt       DateTime   @default(now())
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  amount    Float
+  category  String
+  date      DateTime @default(now())
+  notes     String?
+  admin     Admin    @relation(fields: [adminId], references: [id])
+  createdAt DateTime @default(now())
 }
 
 model Feedback {
-  id              Int        @id @default(autoincrement())
-  customerId      Int
-  rating          Int
-  comment         String?
-  date            DateTime   @default(now())
-  customer        Customer   @relation(fields: [customerId], references: [id])
-  createdAt       DateTime   @default(now())
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  rating     Int
+  comment    String?
+  date       DateTime @default(now())
+  customer   Customer @relation(fields: [customerId], references: [id])
+  createdAt  DateTime @default(now())
 }
 
 model SupportTicket {
-  id          Int      @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   customerId  Int
   subject     String
-  category    String   // general, service, billing, technical, feedback
-  priority    String   // low, medium, high, urgent
-  status      String   // open, in-progress, resolved, closed
+  category    String // general, service, billing, technical, feedback
+  priority    String // low, medium, high, urgent
+  status      String // open, in-progress, resolved, closed
   description String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  customer    Customer @relation(fields: [customerId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  customer    Customer         @relation(fields: [customerId], references: [id])
   messages    SupportMessage[]
 }
 
 model SupportMessage {
   id        Int      @id @default(autoincrement())
   ticketId  Int
-  sender    String   // customer, support, ai
+  sender    String // customer, support, ai
   message   String
   timestamp DateTime @default(now())
-  
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 }
 
 model AIChat {
-  id          Int      @id @default(autoincrement())
-  customerId  Int
-  question    String
-  answer      String?
-  type        String   // user, ai
-  timestamp   DateTime @default(now())
-  
-  customer    Customer @relation(fields: [customerId], references: [id])
+  id         Int      @id @default(autoincrement())
+  customerId Int
+  question   String
+  answer     String?
+  type       String // user, ai
+  timestamp  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id])
 }

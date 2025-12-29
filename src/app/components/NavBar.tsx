@@ -32,8 +32,8 @@ export default function NavBar(){
     <>
       <nav className={`fixed top-2 sm:top-4 left-1/2 transform -translate-x-1/2 z-50 transition-all duration-500 ${
         isScrolled 
-          ? 'w-[95%] max-w-4xl' 
-          : 'w-[92%] max-w-6xl'
+          ? 'w-[95%] max-w-6xl' 
+          : 'w-[92%] max-w-7xl'
       }`}>
         {/* Outer glow effect */}
         <div className={`absolute inset-0 rounded-2xl bg-gradient-to-r from-yellow-400/20 to-amber-400/20 blur-xl transition-opacity duration-500 ${

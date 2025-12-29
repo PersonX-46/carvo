@@ -5,6 +5,7 @@ import WorkerSchedule from "./WorkSchedule";
 import WorkerPerformance from "./WorkerPerformance";
 import WorkerProfile from "./WorkerProfile";
 import WorkerInventory from "./WorkInventory";
+import WorkerTasks from "./WorkerTasks";
 
 interface WorkerTask {
   id: number;
@@ -730,159 +731,8 @@ const WorkerDashboard: React.FC = () => {
               </div>
             )}
             {/* Tasks Tab */}
-            {activeTab === "tasks" && (
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-white">My Tasks</h2>
-                    <p className="text-gray-400">
-                      Manage your assigned service tasks
-                    </p>
-                  </div>
-                  <div className="flex gap-3">
-                    <select className="bg-gray-800 border border-gray-700 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-amber-500">
-                      <option>All Status</option>
-                      <option>Assigned</option>
-                      <option>In Progress</option>
-                      <option>Waiting Parts</option>
-                      <option>Completed</option>
-                    </select>
-                    <button className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-semibold transition-all flex items-center space-x-2">
-                      <span>🔍</span>
-                      <span>Filter</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 rounded-2xl p-6 border border-gray-700/50 hover:border-amber-500/30 transition-all duration-300"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-3">
-                            <div>
-                              <h3 className="text-white font-semibold text-xl mb-1">
-                                {task.vehicleModel} • {task.registrationNumber}
-                              </h3>
-                              <p className="text-amber-400 text-lg">
-                                {task.serviceType}
-                              </p>
-                            </div>
-                            <div className="flex gap-2">
-                              <StatusBadge status={task.status} />
-                              <PriorityBadge priority={task.priority} />
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                            <div>
-                              <p className="text-gray-400 text-sm">Customer</p>
-                              <p className="text-white font-medium">
-                                {task.customerName}
-                              </p>
-                              <p className="text-gray-400 text-sm">
-                                {task.customerPhone}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-gray-400 text-sm">Duration</p>
-                              <p className="text-white font-medium">
-                                {task.estimatedDuration}h
-                                {task.actualDuration &&
-                                  ` (Actual: ${task.actualDuration}h)`}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-gray-400 text-sm">
-                                Assigned Date
-                              </p>
-                              <p className="text-white font-medium">
-                                {formatDate(task.assignedDate)}
-                              </p>
-                            </div>
-                            <div>
-                              <p className="text-gray-400 text-sm">
-                                Booking ID
-                              </p>
-                              <p className="text-white font-medium">
-                                #{task.bookingId}
-                              </p>
-                            </div>
-                          </div>
-
-                          <p className="text-gray-300 text-sm mb-3">
-                            <span className="text-gray-400">
-                              Reported Issue:
-                            </span>{" "}
-                            {task.reportedIssue}
-                          </p>
-
-                          {task.spareParts && task.spareParts.length > 0 && (
-                            <div className="flex items-center space-x-2 text-sm">
-                              <span className="text-gray-400">
-                                Spare Parts:
-                              </span>
-                              <div className="flex flex-wrap gap-1">
-                                {task.spareParts.map((part, index) => (
-                                  <span
-                                    key={index}
-                                    className="bg-gray-700/50 text-gray-300 px-2 py-1 rounded-lg text-xs"
-                                  >
-                                    {part}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {task.notes && (
-                            <div className="mt-3 p-3 bg-gray-700/30 rounded-lg">
-                              <p className="text-amber-400 text-sm font-medium">
-                                📝 Notes: {task.notes}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex lg:flex-col gap-2">
-                          {task.status === "assigned" && (
-                            <button
-                              onClick={() => handleStartTask(task.id)}
-                              className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap"
-                            >
-                              Start Task
-                            </button>
-                          )}
-                          {task.status === "in-progress" && (
-                            <button
-                              onClick={() => handleCompleteTask(task.id)}
-                              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap"
-                            >
-                              Complete Task
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelectedTask(task)}
-                            className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl font-semibold transition-all border border-gray-600 text-sm whitespace-nowrap"
-                          >
-                            View Details
-                          </button>
-                          <button
-                            onClick={() => setIsUpdatingTask(true)}
-                            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-xl font-semibold transition-all text-sm whitespace-nowrap"
-                          >
-                            Update Status
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            // In your WorkerDashboard component, replace the tasks tab with:
+            {activeTab === "tasks" && <WorkerTasks />}
             {activeTab === "schedule" && <WorkerSchedule />}
             {activeTab === "performance" && <WorkerPerformance />}
             {activeTab === "profile" && <WorkerProfile />}

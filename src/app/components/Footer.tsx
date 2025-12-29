@@ -74,12 +74,12 @@ const Footer: React.FC = () => {
                 <span className="text-white font-bold text-xl sm:text-2xl">C</span>
               </div>
               <span className="ml-2 sm:ml-3 text-xl sm:text-2xl font-bold bg-gradient-to-r from-yellow-400 to-amber-400 bg-clip-text text-transparent">
-                CARVO
+                ChengService
               </span>
             </div>
             <p className="text-gray-400 mb-4 sm:mb-6 leading-relaxed text-xs sm:text-sm">
-              Chong Meng AutoService Seremban's online booking system. 
-              Professional automotive care with real-time service tracking and expert technicians.
+              Professional automotive care with real-time service tracking and expert technicians. 
+              Your trusted partner for all vehicle maintenance needs.
             </p>
             <div className="flex space-x-2 sm:space-x-4">
               {[
@@ -163,9 +163,9 @@ const Footer: React.FC = () => {
             </h3>
             <div className="space-y-3 sm:space-y-4">
               {[
-                { icon: '📍', content: 'Chong Meng AutoService\nSeremban, Negeri Sembilan' },
+                { icon: '📍', content: 'Seremban, Negeri Sembilan\nMalaysia' },
                 { icon: '📞', content: '+60 12-345 6789', href: 'tel:+60123456789' },
-                { icon: '✉️', content: 'service@chongmeng.com', href: 'mailto:service@chongmeng.com' },
+                { icon: '✉️', content: 'service@chengservice.com', href: 'mailto:service@chengservice.com' },
                 { icon: '🕒', content: 'Mon - Sat: 8:00 AM - 6:00 PM\nSunday: Closed' }
               ].map((item, index) => (
                 <div key={index} className="flex items-start space-x-2 sm:space-x-3 group">
@@ -198,30 +198,11 @@ const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Newsletter Subscription */}
-        <div className="border-t border-gray-800 pt-6 sm:pt-8 mb-6 sm:mb-8">
-          <div className="flex flex-col lg:flex-row justify-between items-center space-y-4 lg:space-y-0">
-            <div className="flex-1 text-center lg:text-left">
-              <h4 className="text-white font-semibold mb-1 sm:mb-2 text-sm sm:text-base">Service Reminders</h4>
-              <p className="text-gray-400 text-xs sm:text-sm">Get maintenance reminders and service promotions</p>
-            </div>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3 w-full sm:w-auto">
-              <input 
-                type="email" 
-                placeholder="Enter your email" 
-                className="px-3 sm:px-4 py-2 bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-amber-500 transition-colors text-sm w-full sm:w-auto"
-              />
-              <button className="bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-600 hover:to-amber-700 text-white px-4 sm:px-6 py-2 rounded-lg font-semibold transition-all transform hover:scale-105 text-sm whitespace-nowrap">
-                Subscribe
-              </button>
-            </div>
-          </div>
-        </div>
 
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 pt-6 sm:pt-8 flex flex-col md:flex-row justify-between items-center space-y-3 md:space-y-0">
           <div className="flex items-center space-x-2 text-gray-400 text-xs sm:text-sm text-center md:text-left">
-            <span>© {currentYear} Chong Meng AutoService Seremban.</span>
+            <span>© {currentYear} ChengService.</span>
             <span className="text-amber-400">All rights reserved.</span>
           </div>
           <div className="flex flex-wrap justify-center space-x-4 sm:space-x-6 gap-2 sm:gap-0">

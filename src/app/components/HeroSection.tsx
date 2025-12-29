@@ -141,14 +141,13 @@ const HeroSection: React.FC = () => {
 
           {/* Badge */}
           <div className="inline-flex items-center px-4 py-2 rounded-full bg-amber-500/10 backdrop-blur-sm text-amber-300 text-sm font-medium mb-4 animate-fade-in-up border border-amber-500/20">
-            🚗 Professional Auto Service & Workshop Management
           </div>
 
           {/* Main Heading */}
           <h1 className="text-5xl md:text-7xl lg:text-8xl font-bold text-white leading-tight">
-            <span className="block animate-fade-in-up">CARVO</span>
+            <span className="block animate-fade-in-up">Cheng</span>
             <span className="block bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 bg-clip-text text-transparent animate-fade-in-up animation-delay-200">
-              AutoService
+              Service
             </span>
           </h1>
 
@@ -165,7 +164,7 @@ const HeroSection: React.FC = () => {
               ? 'Access your assigned jobs, update service status, and manage your workflow.'
               : userType === 'admin'
               ? 'Oversee operations, generate reports, and manage your workshop efficiently.'
-              : 'Streamline your auto workshop operations with our comprehensive management platform. From customer bookings to inventory management, CARVO provides everything you need to run an efficient and modern automotive service center.'
+              : 'Streamline your auto workshop operations with our comprehensive management platform. From customer bookings to inventory management, ChengService provides everything you need to run an efficient and modern automotive service center.'
             }
           </p>
 
@@ -211,87 +210,7 @@ const HeroSection: React.FC = () => {
             </button>
           </div>
 
-          {/* Quick Access Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto pt-12 animate-fade-in-up animation-delay-800">
-            {[
-              { 
-                icon: '👤', 
-                title: 'For Customers', 
-                desc: userType === 'customer' ? 'Access your dashboard' : 'Easy booking & service tracking',
-                features: userType === 'customer' ? 
-                  ['My Vehicles', 'Bookings', 'Service History'] : 
-                  ['Online Booking', 'Status Updates', 'Service History'],
-                link: getDashboardLink('customer'),
-                buttonText: userType === 'customer' ? 'My Dashboard' : 'Customer Login',
-                isCurrent: userType === 'customer'
-              },
-              { 
-                icon: '🔧', 
-                title: 'For Technicians', 
-                desc: userType === 'worker' ? 'Manage your jobs' : 'Efficient job management',
-                features: userType === 'worker' ? 
-                  ['Assigned Jobs', 'Service Updates', 'Work Reports'] : 
-                  ['Task Management', 'Parts Request', 'Work Reports'],
-                link: getDashboardLink('worker'),
-                buttonText: userType === 'worker' ? 'My Jobs' : 'Worker Login',
-                isCurrent: userType === 'worker'
-              },
-              { 
-                icon: '📊', 
-                title: 'For Management', 
-                desc: userType === 'admin' ? 'Oversee operations' : 'Complete business oversight',
-                features: userType === 'admin' ? 
-                  ['Dashboard', 'Reports', 'Team Management'] : 
-                  ['Analytics', 'Inventory', 'Finance Reports'],
-                link: getDashboardLink('admin'),
-                buttonText: userType === 'admin' ? 'Admin Panel' : 'Admin Login',
-                isCurrent: userType === 'admin'
-              },
-            ].map((item, index) => (
-              <div
-                key={index}
-                className={`text-center p-6 rounded-2xl backdrop-blur-sm border transition-all duration-300 hover:scale-105 hover:shadow-2xl ${
-                  item.isCurrent 
-                    ? 'bg-green-500/10 border-green-500/40 hover:border-green-400/60 hover:shadow-green-500/10' 
-                    : 'bg-white/5 border-amber-500/20 hover:border-amber-400/40 hover:shadow-amber-500/10'
-                }`}
-              >
-                <div className={`text-3xl font-bold mb-3 ${item.isCurrent ? 'text-green-400' : 'text-amber-400'}`}>
-                  {item.icon}
-                </div>
-                <div className="text-xl font-bold text-white mb-2">
-                  {item.title}
-                  {item.isCurrent && (
-                    <span className="ml-2 text-xs text-green-400 bg-green-500/20 px-2 py-1 rounded-full">
-                      Active
-                    </span>
-                  )}
-                </div>
-                <div className="text-gray-400 text-sm mb-4">{item.desc}</div>
-                
-                {/* Features List */}
-                <div className="space-y-1 mb-4">
-                  {item.features.map((feature, featureIndex) => (
-                    <div key={featureIndex} className={`text-xs ${item.isCurrent ? 'text-green-300/80' : 'text-amber-300/80'}`}>
-                      ✓ {feature}
-                    </div>
-                  ))}
-                </div>
-                
-                <Link
-                  href={item.link}
-                  className={`inline-block w-full px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                    item.isCurrent
-                      ? 'bg-green-500/20 hover:bg-green-500/30 text-green-300 border border-green-500/40 hover:border-green-400/60'
-                      : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:border-amber-400/50'
-                  }`}
-                >
-                  {item.buttonText}
-                </Link>
-              </div>
-            ))}
-          </div>
-
+     
           {/* Stats Section */}
           {!userType && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto pt-12 animate-fade-in-up animation-delay-1000">
@@ -317,7 +236,7 @@ const HeroSection: React.FC = () => {
       {!userType && (
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce z-10">
           <div className="text-center">
-            <div className="text-sm text-amber-400/80 mb-2">Discover CARVO</div>
+            <div className="text-sm text-amber-400/80 mb-2">Discover ChengService</div>
             <div className="w-6 h-10 border-2 border-amber-500/50 rounded-full flex justify-center mx-auto">
               <div className="w-1 h-3 bg-amber-400 rounded-full mt-2 animate-pulse"></div>
             </div>

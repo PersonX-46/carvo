@@ -1,52 +1,88 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { getCurrentUser } from '@/lib/auth';
+import { PrismaClient } from '@prisma/client';
 
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user || user.type !== 'admin') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    const { searchParams } = new URL(request.url);
+    const filter = searchParams.get('filter') || 'all';
+
+    let whereClause: any = {};
+
+    switch (filter) {
+      case 'unassigned':
+        whereClause.workerId = null;
+        whereClause.status = { not: 'Cancelled' };
+        break;
+      case 'assigned':
+        whereClause.workerId = { not: null };
+        whereClause.status = { not: 'Cancelled' };
+        break;
+      case 'new':
+      case 'pending':
+        whereClause.status = 'Pending';
+        break;
+      case 'in-progress':
+        whereClause.status = 'In Progress';
+        break;
+      case 'completed':
+        whereClause.status = 'Completed';
+        break;
+      case 'cancelled':
+        whereClause.status = 'Cancelled';
+        break;
+      case 'price-pending':
+        whereClause.OR = [
+          { status: 'Price Pending' },
+          { priceApproved: false, priceRejected: false }
+        ];
+        break;
     }
 
     const bookings = await prisma.booking.findMany({
+      where: whereClause,
       include: {
         customer: {
           select: {
             name: true,
-            phone: true
-          }
+            email: true,
+            phone: true,
+          },
         },
         vehicle: {
           select: {
             model: true,
-            registrationNumber: true
-          }
+            registrationNumber: true,
+            type: true,
+          },
         },
         service: {
           include: {
             worker: {
               select: {
-                name: true
-              }
-            }
-          }
-        }
+                id: true,
+                name: true,
+                position: true,
+              },
+            },
+          },
+        },
       },
-      orderBy: { bookingDate: 'asc' }
+      orderBy: {
+        bookingDate: 'asc',
+      },
     });
 
-    return NextResponse.json({ bookings });
-
+    return NextResponse.json({
+      success: true,
+      bookings,
+      count: bookings.length,
+    });
   } catch (error) {
-    console.error('Get admin bookings error:', error);
+    console.error('Error fetching bookings:', error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { success: false, error: 'Failed to fetch bookings' },
       { status: 500 }
     );
   }

@@ -288,7 +288,7 @@ const CustomerDashboard: React.FC = () => {
               </div>
               <div>
                 <h1 className="text-xl font-bold bg-gradient-to-r from-amber-400 to-amber-500 bg-clip-text text-transparent">
-                  CARVO Customer Portal
+                  ChengService Customer Portal
                 </h1>
                 <p className="text-gray-400 text-sm">Chong Meng AutoService</p>
               </div>
