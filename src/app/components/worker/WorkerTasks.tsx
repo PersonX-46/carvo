@@ -17,6 +17,9 @@ interface PendingBooking {
     | "Price Pending";
   reportedIssue: string | null;
   estimatedCost: number | null;
+  estimatedMinCost?: number | null;
+  estimatedMaxCost?: number | null;
+  finalCost?: number | null;
   confirmed: boolean;
   duration: number | null;
   priceApproved?: boolean | null;
@@ -85,26 +88,35 @@ const WorkerTasks: React.FC = () => {
     | "completed"
   >("assigned");
 
-  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+  const [isPriceRangeModalOpen, setIsPriceRangeModalOpen] = useState(false);
+  const [isFinalPriceModalOpen, setIsFinalPriceModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [bookingToReject, setBookingToReject] = useState<number | null>(null);
 
-  // Price estimate form state
-  const [priceEstimate, setPriceEstimate] = useState({
-    laborCost: 0,
-    partsCost: 0,
-    totalCost: 0,
+  // Price RANGE form state (for initial estimate)
+  const [priceRangeEstimate, setPriceRangeEstimate] = useState({
+    minCost: 0,
+    maxCost: 0,
     estimatedDuration: 1,
     spareParts: [] as string[],
     repairNotes: "",
   });
 
+  // FINAL price form state (after completion)
+  const [finalPrice, setFinalPrice] = useState({
+    laborCost: 0,
+    partsCost: 0,
+    totalCost: 0,
+    actualPartsUsed: [] as string[],
+    finalNotes: "",
+  });
+
   // Fetch worker's bookings
   useEffect(() => {
     fetchWorkerBookings();
-    const intervalId = setInterval(fetchWorkerBookings, 30000); // Refresh every 30 seconds
+    const intervalId = setInterval(fetchWorkerBookings, 30000);
     return () => clearInterval(intervalId);
   }, []);
 
@@ -113,7 +125,6 @@ const WorkerTasks: React.FC = () => {
       setIsLoading(true);
       setError("");
 
-      // Get worker ID from localStorage or auth context
       const workerId = localStorage.getItem("workerId") || "1";
 
       const response = await fetch(
@@ -123,7 +134,6 @@ const WorkerTasks: React.FC = () => {
 
       const data = await response.json();
 
-      // Update all booking lists
       setAssignedBookings(data.assignedBookings || []);
       setPricePendingBookings(data.pricePendingBookings || []);
       setPriceApprovedBookings(data.priceApprovedBookings || []);
@@ -138,22 +148,32 @@ const WorkerTasks: React.FC = () => {
     }
   };
 
-  // Submit price estimate for an assigned booking
-  const handleSubmitPriceEstimate = async () => {
+  // Submit PRICE RANGE estimate (initial estimate)
+  const handleSubmitPriceRangeEstimate = async () => {
     if (!selectedBooking) return;
 
     try {
       setIsActionLoading(true);
       const workerId = localStorage.getItem("workerId") || "1";
 
+      // Calculate average for display
+      const averageCost =
+        (priceRangeEstimate.minCost + priceRangeEstimate.maxCost) / 2;
+
       const response = await fetch(
-        `/api/worker/bookings/${selectedBooking.id}/estimate`,
+        `/api/worker/bookings/${selectedBooking.id}/estimate-range`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            ...priceEstimate,
+            minCost: priceRangeEstimate.minCost,
+            maxCost: priceRangeEstimate.maxCost,
+            estimatedDuration: priceRangeEstimate.estimatedDuration,
+            repairNotes: priceRangeEstimate.repairNotes,
             workerId: parseInt(workerId),
+            // Add this to update booking status properly
+            updateStatus: true,
+            newStatus: "Confirmed", // Set to Confirmed for customer side
           }),
         }
       );
@@ -170,15 +190,17 @@ const WorkerTasks: React.FC = () => {
         ...prev,
         {
           ...selectedBooking,
-          estimatedCost: priceEstimate.totalCost,
-          duration: priceEstimate.estimatedDuration,
+          estimatedMinCost: priceRangeEstimate.minCost,
+          estimatedMaxCost: priceRangeEstimate.maxCost,
+          estimatedCost: averageCost, // Store average for display
+          duration: priceRangeEstimate.estimatedDuration,
           status: "Price Pending",
         },
       ]);
 
-      setIsPriceModalOpen(false);
+      setIsPriceRangeModalOpen(false);
       setSelectedBooking(null);
-      alert("Price estimate submitted. Waiting for customer approval.");
+      alert("Price range estimate submitted. Waiting for customer approval.");
     } catch (error) {
       console.error("Error submitting price estimate:", error);
       alert(
@@ -191,20 +213,77 @@ const WorkerTasks: React.FC = () => {
     }
   };
 
-  // Start work on price approved booking
-  // In your WorkerTasks component, update the handleStartWork function:
+  // In your WorkerTasks component, update the handleSubmitFinalPrice function:
+
+  const handleSubmitFinalPrice = async () => {
+    if (!selectedBooking) return;
+
+    try {
+      setIsActionLoading(true);
+      const workerId = localStorage.getItem("workerId") || "1";
+
+      const response = await fetch(
+        `/api/worker/bookings/${selectedBooking.id}/final-price`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            laborCost: finalPrice.laborCost,
+            partsCost: finalPrice.partsCost,
+            totalCost: finalPrice.totalCost,
+            actualPartsUsed: finalPrice.actualPartsUsed,
+            finalNotes: finalPrice.finalNotes,
+            workerId: parseInt(workerId),
+          }),
+        }
+      );
+
+      const data = await response.json();
+      if (!response.ok)
+        throw new Error(data.error || "Failed to submit final price");
+
+      // Update completed booking with final price from service
+      setCompletedBookings((prev) =>
+        prev.map((booking) =>
+          booking.id === selectedBooking.id
+            ? {
+                ...booking,
+                finalCost: data.finalPrice?.totalCost || finalPrice.totalCost,
+                estimatedCost:
+                  data.finalPrice?.totalCost || finalPrice.totalCost,
+                service: booking.service
+                  ? {
+                      ...booking.service,
+                      serviceCost:
+                        data.finalPrice?.totalCost || finalPrice.totalCost,
+                      repairNotes: finalPrice.finalNotes,
+                    }
+                  : booking.service,
+              }
+            : booking
+        )
+      );
+
+      setIsFinalPriceModalOpen(false);
+      setSelectedBooking(null);
+      alert("Final price submitted successfully!");
+
+      setTimeout(() => fetchWorkerBookings(), 1000);
+    } catch (error) {
+      console.error("Error submitting final price:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to submit final price"
+      );
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   // Start work on price approved booking
   const handleStartWork = async (bookingId: number) => {
     try {
       setIsActionLoading(true);
-
-      // Get worker ID from localStorage
       const workerId = localStorage.getItem("workerId") || "1";
-
-      console.log(
-        `Starting work on booking ${bookingId} for worker ${workerId}`
-      );
 
       const response = await fetch(`/api/worker/bookings/${bookingId}/status`, {
         method: "POST",
@@ -218,7 +297,6 @@ const WorkerTasks: React.FC = () => {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("API Error:", data);
         throw new Error(
           data.error || `Failed to start work: ${response.statusText}`
         );
@@ -231,11 +309,9 @@ const WorkerTasks: React.FC = () => {
       // Find the booking
       const booking = priceApprovedBookings.find((b) => b.id === bookingId);
       if (booking) {
-        // Remove from price approved
         setPriceApprovedBookings((prev) =>
           prev.filter((b) => b.id !== bookingId)
         );
-        // Add to in progress
         setInProgressBookings((prev) => [
           ...prev,
           {
@@ -248,20 +324,13 @@ const WorkerTasks: React.FC = () => {
       }
     } catch (error) {
       console.error("Error starting work:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Failed to start work. Please check the console for details."
-      );
+      alert(error instanceof Error ? error.message : "Failed to start work.");
     } finally {
       setIsActionLoading(false);
     }
   };
 
   // Mark booking as completed
-  // In your WorkerTasks component, update the handleCompleteWork function:
-
-// Mark booking as completed
   const handleCompleteWork = async (bookingId: number) => {
     if (!confirm("Are you sure you want to mark this booking as completed?")) {
       return;
@@ -269,136 +338,135 @@ const WorkerTasks: React.FC = () => {
 
     try {
       setIsActionLoading(true);
-      
-      // Get worker ID from localStorage
       const workerId = localStorage.getItem("workerId") || "1";
-      
-      console.log(`📝 Attempting to complete booking ${bookingId} for worker ${workerId}`);
-      
+
       const response = await fetch(`/api/worker/bookings/${bookingId}/status`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           status: "Completed",
-          workerId: parseInt(workerId)
+          workerId: parseInt(workerId),
         }),
       });
 
       const data = await response.json();
-      
-      console.log("API Response:", data);
-      
+
       if (!response.ok) {
-        console.error("❌ API Error Response:", data);
-        throw new Error(data.error || `Failed to mark as completed: ${response.statusText}`);
+        throw new Error(
+          data.error || `Failed to mark as completed: ${response.statusText}`
+        );
       }
 
       if (!data.success) {
         throw new Error(data.error || "Failed to mark as completed");
       }
 
-      // Find the booking in inProgressBookings
-      const booking = inProgressBookings.find(b => b.id === bookingId);
+      // Find the booking
+      const booking = inProgressBookings.find((b) => b.id === bookingId);
       if (booking) {
-        // Remove from in progress
-        setInProgressBookings(prev => prev.filter(b => b.id !== bookingId));
-        // Add to completed
-        setCompletedBookings(prev => [{ 
-          ...booking, 
-          status: "Completed" 
-        }, ...prev]); // Add to beginning of array
-        
-        // Send WhatsApp notification
+        setInProgressBookings((prev) => prev.filter((b) => b.id !== bookingId));
+        setCompletedBookings((prev) => [
+          {
+            ...booking,
+            status: "Completed",
+          },
+          ...prev,
+        ]);
+
         sendWhatsAppCompletionNotification(booking);
-        
         alert("✅ Booking marked as completed successfully!");
-        
-        // Refresh data after successful completion
+
         setTimeout(() => fetchWorkerBookings(), 1000);
-      } else {
-        // Also check priceApprovedBookings in case booking wasn't in inProgress
-        const approvedBooking = priceApprovedBookings.find(b => b.id === bookingId);
-        if (approvedBooking) {
-          setPriceApprovedBookings(prev => prev.filter(b => b.id !== bookingId));
-          setCompletedBookings(prev => [{ ...approvedBooking, status: "Completed" }, ...prev]);
-          sendWhatsAppCompletionNotification(approvedBooking);
-          alert("✅ Booking marked as completed successfully!");
-          setTimeout(() => fetchWorkerBookings(), 1000);
-        }
       }
-      
     } catch (error) {
-      console.error("❌ Error completing work:", error);
-      alert(error instanceof Error ? error.message : "Failed to mark as completed. Please check the console for details.");
+      console.error("Error completing work:", error);
+      alert(
+        error instanceof Error ? error.message : "Failed to mark as completed."
+      );
     } finally {
       setIsActionLoading(false);
     }
   };
 
-  // Also update the sendWhatsAppCompletionNotification function:
   const sendWhatsAppCompletionNotification = (booking: PendingBooking) => {
     try {
-      if (!booking.customer.phone) {
-        console.warn("⚠️ Customer phone number not available for WhatsApp notification");
-        return;
-      }
+      if (!booking.customer.phone) return;
 
       const phoneNumber = booking.customer.phone.replace(/\D/g, "");
-      
-      // Format the date nicely
-      const completionDate = new Date().toLocaleDateString('en-MY', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+      const completionDate = new Date().toLocaleDateString("en-MY", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
+
+      // Show price range if available, otherwise show estimated cost
+      const priceInfo =
+        booking.estimatedMinCost && booking.estimatedMaxCost
+          ? `RM ${booking.estimatedMinCost.toFixed(
+              2
+            )} - RM ${booking.estimatedMaxCost.toFixed(2)}`
+          : `RM ${booking.estimatedCost?.toFixed(2) || "0.00"}`;
 
       const message = `Hello ${booking.customer.name}! 🚗
 
-  🎉 Your vehicle service is now COMPLETED!
+🎉 Your vehicle service is now COMPLETED!
 
-  📋 Service Details:
-  • Vehicle: ${booking.vehicle.model} (${booking.vehicle.registrationNumber})
-  • Total Cost: RM ${booking.estimatedCost?.toFixed(2) || "0.00"}
-  • Completed On: ${completionDate}
+📋 Service Details:
+• Vehicle: ${booking.vehicle.model} (${booking.vehicle.registrationNumber})
+• Estimated Price Range: ${priceInfo}
+• Completed On: ${completionDate}
 
-  ✅ Your vehicle is ready for collection!
-  📍 Location: Cheng Service Workshop
-  ⏰ Operating Hours: 9:00 AM - 6:00 PM (Mon-Sat)
+✅ Your vehicle is ready for collection!
+The final invoice will be provided when you collect your vehicle.
 
-  Please bring your service invoice when collecting your vehicle.
+Thank you for choosing Cheng Service! 😊
 
-  Thank you for choosing Cheng Service! We appreciate your business. 😊
-
-  Best regards,
-  Cheng Service Team`;
+Best regards,
+Cheng Service Team`;
 
       const encodedMessage = encodeURIComponent(message);
       const whatsappUrl = `https://wa.me/6${phoneNumber}?text=${encodedMessage}`;
-      
-      console.log("📱 Opening WhatsApp notification:", whatsappUrl);
       window.open(whatsappUrl, "_blank");
-      
     } catch (error) {
-      console.error("❌ Error sending WhatsApp notification:", error);
-      // Don't alert the user about WhatsApp failure, just log it
+      console.error("Error sending WhatsApp notification:", error);
     }
   };
 
   // Revise price for rejected bookings
   const handleRevisePrice = (booking: PendingBooking) => {
     setSelectedBooking(booking);
-    setPriceEstimate({
-      laborCost: booking.estimatedCost ? booking.estimatedCost * 0.7 : 0,
-      partsCost: booking.estimatedCost ? booking.estimatedCost * 0.3 : 0,
-      totalCost: booking.estimatedCost || 0,
+    setPriceRangeEstimate({
+      minCost: booking.estimatedMinCost || booking.estimatedCost || 0,
+      maxCost:
+        booking.estimatedMaxCost ||
+        (booking.estimatedCost ? booking.estimatedCost * 1.2 : 0),
       estimatedDuration: booking.duration || 1,
       spareParts: [],
       repairNotes: booking.reportedIssue || "",
     });
-    setIsPriceModalOpen(true);
+    setIsPriceRangeModalOpen(true);
+  };
+
+  // Set final price for completed bookings
+  const handleSetFinalPrice = (booking: PendingBooking) => {
+    setSelectedBooking(booking);
+    // Start with price range as reference
+    const minCost = booking.estimatedMinCost || booking.estimatedCost || 0;
+    const maxCost =
+      booking.estimatedMaxCost ||
+      (booking.estimatedCost ? booking.estimatedCost * 1.2 : 0);
+
+    setFinalPrice({
+      laborCost: ((minCost + maxCost) / 2) * 0.7, // 70% labor as default
+      partsCost: ((minCost + maxCost) / 2) * 0.3, // 30% parts as default
+      totalCost: (minCost + maxCost) / 2,
+      actualPartsUsed: [],
+      finalNotes: `Final service completed for ${booking.vehicle.model}.`,
+    });
+    setIsFinalPriceModalOpen(true);
   };
 
   // Reject assigned booking
@@ -424,9 +492,7 @@ const WorkerTasks: React.FC = () => {
 
       if (!response.ok) throw new Error("Failed to reject assignment");
 
-      // Remove from assigned bookings
       setAssignedBookings((prev) => prev.filter((b) => b.id !== bookingId));
-
       setIsRejectModalOpen(false);
       setBookingToReject(null);
       setRejectionReason("");
@@ -439,7 +505,7 @@ const WorkerTasks: React.FC = () => {
     }
   };
 
-const StatusBadge = ({ status }: { status: string }) => {
+  const StatusBadge = ({ status }: { status: string }) => {
     const getStatusColor = (status: string) => {
       switch (status) {
         case "Pending":
@@ -470,11 +536,25 @@ const StatusBadge = ({ status }: { status: string }) => {
     );
   };
 
-  // Calculate total cost automatically
+  // Calculate total cost automatically for final price
   useEffect(() => {
-    const total = priceEstimate.laborCost + priceEstimate.partsCost;
-    setPriceEstimate((prev) => ({ ...prev, totalCost: total }));
-  }, [priceEstimate.laborCost, priceEstimate.partsCost]);
+    const total = finalPrice.laborCost + finalPrice.partsCost;
+    setFinalPrice((prev) => ({ ...prev, totalCost: total }));
+  }, [finalPrice.laborCost, finalPrice.partsCost]);
+
+  // Format price display with range
+  const formatPriceDisplay = (booking: PendingBooking) => {
+    if (booking.finalCost) {
+      return `RM ${booking.finalCost.toFixed(2)} (Final)`;
+    } else if (booking.estimatedMinCost && booking.estimatedMaxCost) {
+      return `RM ${booking.estimatedMinCost.toFixed(
+        2
+      )} - RM ${booking.estimatedMaxCost.toFixed(2)}`;
+    } else if (booking.estimatedCost) {
+      return `RM ${booking.estimatedCost.toFixed(2)}`;
+    }
+    return "Price not set";
+  };
 
   if (isLoading) {
     return (
@@ -571,7 +651,7 @@ const StatusBadge = ({ status }: { status: string }) => {
               : "text-gray-400 hover:text-white"
           }`}
         >
-          Awaiting Approval ({pricePendingBookings.length})
+          Awaiting ({pricePendingBookings.length})
         </button>
         <button
           onClick={() => setActiveTab("priceApproved")}
@@ -601,7 +681,7 @@ const StatusBadge = ({ status }: { status: string }) => {
               : "text-gray-400 hover:text-white"
           }`}
         >
-          In Progress ({inProgressBookings.length})
+          Progress ({inProgressBookings.length})
         </button>
         <button
           onClick={() => setActiveTab("completed")}
@@ -699,20 +779,19 @@ const StatusBadge = ({ status }: { status: string }) => {
                     <button
                       onClick={() => {
                         setSelectedBooking(booking);
-                        setPriceEstimate({
-                          laborCost: 0,
-                          partsCost: 0,
-                          totalCost: 0,
+                        setPriceRangeEstimate({
+                          minCost: 0,
+                          maxCost: 0,
                           estimatedDuration: booking.duration || 1,
                           spareParts: [],
                           repairNotes: booking.reportedIssue || "",
                         });
-                        setIsPriceModalOpen(true);
+                        setIsPriceRangeModalOpen(true);
                       }}
                       disabled={isActionLoading}
                       className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-400 text-white px-4 py-2 rounded-xl font-medium"
                     >
-                      Set Price
+                      Set Price Range
                     </button>
                     <button
                       onClick={() => {
@@ -732,7 +811,7 @@ const StatusBadge = ({ status }: { status: string }) => {
         </div>
       )}
 
-      {/* Price Pending Tab */}
+      {/* Price Pending Tab (with price ranges) */}
       {activeTab === "pricePending" && (
         <div className="space-y-4">
           {pricePendingBookings.length === 0 ? (
@@ -764,15 +843,30 @@ const StatusBadge = ({ status }: { status: string }) => {
                       </div>
                       <div className="flex items-center gap-2">
                         <StatusBadge status="Awaiting Approval" />
-                        <span className="text-yellow-400 font-bold text-lg">
-                          RM {booking.estimatedCost?.toFixed(2)}
-                        </span>
+                        <div className="text-center">
+                          <div className="text-yellow-400 font-bold text-lg">
+                            {booking.estimatedMinCost &&
+                            booking.estimatedMaxCost ? (
+                              <>
+                                RM {booking.estimatedMinCost.toFixed(2)} - RM{" "}
+                                {booking.estimatedMaxCost.toFixed(2)}
+                                <div className="text-gray-300 text-xs">
+                                  Estimated Range
+                                </div>
+                              </>
+                            ) : (
+                              `RM ${
+                                booking.estimatedCost?.toFixed(2) || "0.00"
+                              }`
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     <div className="mb-4">
                       <p className="text-blue-300 font-medium mb-2">
-                        ⏳ Waiting for customer to approve the price
+                        ⏳ Waiting for customer to approve the price range
                       </p>
                       <p className="text-gray-300 text-sm">
                         Customer will be notified via WhatsApp/Email
@@ -783,7 +877,7 @@ const StatusBadge = ({ status }: { status: string }) => {
                       onClick={() => handleRevisePrice(booking)}
                       className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-medium"
                     >
-                      Revise Price Estimate
+                      Revise Price Range
                     </button>
                   </div>
                 </div>
@@ -825,15 +919,28 @@ const StatusBadge = ({ status }: { status: string }) => {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge status="Price Approved" />
-                        <span className="text-green-400 font-bold text-xl">
-                          RM {booking.estimatedCost?.toFixed(2)}
-                        </span>
+                        <div className="text-right">
+                          <div className="text-green-400 font-bold text-xl">
+                            {booking.estimatedMinCost &&
+                            booking.estimatedMaxCost ? (
+                              <>
+                                RM {booking.estimatedMinCost.toFixed(2)} - RM{" "}
+                                {booking.estimatedMaxCost.toFixed(2)}
+                              </>
+                            ) : (
+                              <>RM {booking.estimatedCost?.toFixed(2)}</>
+                            )}
+                          </div>
+                          <div className="text-green-300 text-sm">
+                            ✓ Customer Approved
+                          </div>
+                        </div>
                       </div>
                     </div>
 
                     <div className="mb-4">
                       <p className="text-green-300 font-medium mb-2">
-                        ✅ Customer has approved the price
+                        ✅ Customer has approved the price range
                       </p>
                       <p className="text-gray-300">
                         You can now start working on this vehicle.
@@ -888,7 +995,15 @@ const StatusBadge = ({ status }: { status: string }) => {
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge status="Price Rejected" />
                         <span className="text-red-400 font-bold text-lg">
-                          RM {booking.estimatedCost?.toFixed(2)}
+                          {booking.estimatedMinCost &&
+                          booking.estimatedMaxCost ? (
+                            <>
+                              RM {booking.estimatedMinCost.toFixed(2)} - RM{" "}
+                              {booking.estimatedMaxCost.toFixed(2)}
+                            </>
+                          ) : (
+                            <>RM {booking.estimatedCost?.toFixed(2)}</>
+                          )}
                         </span>
                       </div>
                     </div>
@@ -909,7 +1024,7 @@ const StatusBadge = ({ status }: { status: string }) => {
                         onClick={() => handleRevisePrice(booking)}
                         className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-medium"
                       >
-                        Revise Price
+                        Revise Price Range
                       </button>
                       <button
                         onClick={() =>
@@ -965,7 +1080,7 @@ const StatusBadge = ({ status }: { status: string }) => {
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge status="In Progress" />
                         <span className="text-yellow-400 font-bold text-xl">
-                          RM {booking.estimatedCost?.toFixed(2)}
+                          {formatPriceDisplay(booking)}
                         </span>
                       </div>
                     </div>
@@ -980,15 +1095,6 @@ const StatusBadge = ({ status }: { status: string }) => {
                           ? "Completing..."
                           : "Mark as Completed"}
                       </button>
-                      <button
-                        onClick={() => {
-                          setSelectedBooking(booking);
-                          setIsDetailsModalOpen(true);
-                        }}
-                        className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-xl font-medium"
-                      >
-                        Update Notes
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -998,7 +1104,7 @@ const StatusBadge = ({ status }: { status: string }) => {
         </div>
       )}
 
-      {/* Completed Tab */}
+      {/* Completed Tab with Final Price Setting */}
       {activeTab === "completed" && (
         <div className="space-y-4">
           {completedBookings.length === 0 ? (
@@ -1030,15 +1136,58 @@ const StatusBadge = ({ status }: { status: string }) => {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <StatusBadge status="Completed" />
-                        <span className="text-purple-400 font-bold text-xl">
-                          RM {booking.estimatedCost?.toFixed(2)}
-                        </span>
+                        <div className="text-right">
+                          <div
+                            className={`font-bold text-xl ${
+                              booking.finalCost
+                                ? "text-purple-400"
+                                : "text-amber-400"
+                            }`}
+                          >
+                            {booking.finalCost ? (
+                              <>RM {booking.finalCost.toFixed(2)} (Final)</>
+                            ) : booking.estimatedMinCost &&
+                              booking.estimatedMaxCost ? (
+                              <>
+                                RM {booking.estimatedMinCost.toFixed(2)} - RM{" "}
+                                {booking.estimatedMaxCost.toFixed(2)}
+                              </>
+                            ) : (
+                              <>
+                                RM {booking.estimatedCost?.toFixed(2) || "0.00"}
+                              </>
+                            )}
+                          </div>
+                          {!booking.finalCost && (
+                            <div className="text-amber-300 text-sm">
+                              ⚠️ Final price needed
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <p className="text-green-300 font-medium">
+                    <p className="text-green-300 font-medium mb-4">
                       ✅ Service completed successfully
                     </p>
+
+                    {!booking.finalCost ? (
+                      <button
+                        onClick={() => handleSetFinalPrice(booking)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-medium"
+                      >
+                        Set Final Price
+                      </button>
+                    ) : (
+                      <div className="bg-green-500/20 rounded-lg p-3 border border-green-500/30">
+                        <p className="text-green-300">
+                          ✓ Final price has been set
+                        </p>
+                        <p className="text-gray-300 text-sm mt-1">
+                          Customer can now make payment
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1047,26 +1196,23 @@ const StatusBadge = ({ status }: { status: string }) => {
         </div>
       )}
 
-      {/* Price Estimate Modal */}
-      {isPriceModalOpen && selectedBooking && (
+      {/* Price Range Modal (for initial estimate) */}
+      {isPriceRangeModalOpen && selectedBooking && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-2xl border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-bold text-white">
-                  {selectedBooking.estimatedCost
-                    ? "Revise Price Estimate"
-                    : "Set Price Estimate"}
+                  Set Price Range Estimate
                 </h3>
                 <button
-                  onClick={() => setIsPriceModalOpen(false)}
+                  onClick={() => setIsPriceRangeModalOpen(false)}
                   className="text-gray-400 hover:text-white text-2xl"
                 >
                   &times;
                 </button>
               </div>
 
-              {/* Booking Info */}
               <div className="bg-gray-700/50 rounded-xl p-4 mb-6">
                 <p className="text-white font-medium mb-2">
                   {selectedBooking.vehicle.model} (
@@ -1085,52 +1231,60 @@ const StatusBadge = ({ status }: { status: string }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-gray-300 text-sm font-medium mb-2">
-                      Labor Cost (RM)
+                      Minimum Estimated Cost (RM)
                     </label>
                     <input
                       type="number"
-                      value={priceEstimate.laborCost}
+                      value={priceRangeEstimate.minCost}
                       onChange={(e) =>
-                        setPriceEstimate((prev) => ({
+                        setPriceRangeEstimate((prev) => ({
                           ...prev,
-                          laborCost: parseFloat(e.target.value) || 0,
+                          minCost: parseFloat(e.target.value) || 0,
                         }))
                       }
                       className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
                       min="0"
                       step="0.01"
+                      placeholder="e.g., 100"
                     />
                   </div>
                   <div>
                     <label className="block text-gray-300 text-sm font-medium mb-2">
-                      Parts Cost (RM)
+                      Maximum Estimated Cost (RM)
                     </label>
                     <input
                       type="number"
-                      value={priceEstimate.partsCost}
+                      value={priceRangeEstimate.maxCost}
                       onChange={(e) =>
-                        setPriceEstimate((prev) => ({
+                        setPriceRangeEstimate((prev) => ({
                           ...prev,
-                          partsCost: parseFloat(e.target.value) || 0,
+                          maxCost: parseFloat(e.target.value) || 0,
                         }))
                       }
                       className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
                       min="0"
                       step="0.01"
+                      placeholder="e.g., 200"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-gray-300 text-sm font-medium mb-2">
-                    Total Cost (RM)
-                  </label>
-                  <input
-                    type="number"
-                    value={priceEstimate.totalCost}
-                    readOnly
-                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white font-bold text-xl"
-                  />
+                <div className="bg-amber-500/10 rounded-lg p-4 border border-amber-500/20">
+                  <div className="text-center">
+                    <div className="text-amber-400 font-bold text-xl mb-1">
+                      Estimated Range: RM{" "}
+                      {priceRangeEstimate.minCost.toFixed(2)} - RM{" "}
+                      {priceRangeEstimate.maxCost.toFixed(2)}
+                    </div>
+                    <div className="text-amber-300 text-sm">
+                      Average: RM{" "}
+                      {(
+                        (priceRangeEstimate.minCost +
+                          priceRangeEstimate.maxCost) /
+                        2
+                      ).toFixed(2)}
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1139,9 +1293,9 @@ const StatusBadge = ({ status }: { status: string }) => {
                   </label>
                   <input
                     type="number"
-                    value={priceEstimate.estimatedDuration}
+                    value={priceRangeEstimate.estimatedDuration}
                     onChange={(e) =>
-                      setPriceEstimate((prev) => ({
+                      setPriceRangeEstimate((prev) => ({
                         ...prev,
                         estimatedDuration: parseInt(e.target.value) || 1,
                       }))
@@ -1156,9 +1310,9 @@ const StatusBadge = ({ status }: { status: string }) => {
                     Repair Notes & Recommendations
                   </label>
                   <textarea
-                    value={priceEstimate.repairNotes}
+                    value={priceRangeEstimate.repairNotes}
                     onChange={(e) =>
-                      setPriceEstimate((prev) => ({
+                      setPriceRangeEstimate((prev) => ({
                         ...prev,
                         repairNotes: e.target.value,
                       }))
@@ -1171,19 +1325,211 @@ const StatusBadge = ({ status }: { status: string }) => {
 
                 <div className="flex gap-3 pt-4">
                   <button
-                    onClick={() => setIsPriceModalOpen(false)}
+                    onClick={() => setIsPriceRangeModalOpen(false)}
                     className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={handleSubmitPriceEstimate}
-                    disabled={isActionLoading || priceEstimate.totalCost <= 0}
+                    onClick={handleSubmitPriceRangeEstimate}
+                    disabled={
+                      isActionLoading ||
+                      priceRangeEstimate.minCost <= 0 ||
+                      priceRangeEstimate.maxCost <= 0 ||
+                      priceRangeEstimate.minCost >= priceRangeEstimate.maxCost
+                    }
                     className="flex-1 bg-amber-500 hover:bg-amber-600 disabled:bg-amber-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
                   >
-                    {isActionLoading
-                      ? "Submitting..."
-                      : "Submit Price Estimate"}
+                    {isActionLoading ? "Submitting..." : "Submit Price Range"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Final Price Modal (after completion) */}
+      {isFinalPriceModalOpen && selectedBooking && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-2xl border border-gray-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold text-white">
+                  Set Final Price
+                </h3>
+                <button
+                  onClick={() => setIsFinalPriceModalOpen(false)}
+                  className="text-gray-400 hover:text-white text-2xl"
+                >
+                  &times;
+                </button>
+              </div>
+
+              <div className="bg-gray-700/50 rounded-xl p-4 mb-6">
+                <p className="text-white font-medium mb-2">
+                  {selectedBooking.vehicle.model} (
+                  {selectedBooking.vehicle.registrationNumber})
+                </p>
+                <p className="text-gray-300">
+                  Customer: {selectedBooking.customer.name}
+                </p>
+                {selectedBooking.estimatedMinCost &&
+                  selectedBooking.estimatedMaxCost && (
+                    <p className="text-amber-300">
+                      Approved Price Range: RM{" "}
+                      {selectedBooking.estimatedMinCost.toFixed(2)} - RM{" "}
+                      {selectedBooking.estimatedMaxCost.toFixed(2)}
+                    </p>
+                  )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Actual Labor Cost (RM)
+                    </label>
+                    <input
+                      type="number"
+                      value={finalPrice.laborCost}
+                      onChange={(e) =>
+                        setFinalPrice((prev) => ({
+                          ...prev,
+                          laborCost: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-gray-300 text-sm font-medium mb-2">
+                      Actual Parts Cost (RM)
+                    </label>
+                    <input
+                      type="number"
+                      value={finalPrice.partsCost}
+                      onChange={(e) =>
+                        setFinalPrice((prev) => ({
+                          ...prev,
+                          partsCost: parseFloat(e.target.value) || 0,
+                        }))
+                      }
+                      className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Total Final Cost (RM)
+                  </label>
+                  <input
+                    type="number"
+                    value={finalPrice.totalCost}
+                    readOnly
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white font-bold text-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Actual Parts Used
+                  </label>
+                  <textarea
+                    value={finalPrice.actualPartsUsed.join(", ")}
+                    onChange={(e) =>
+                      setFinalPrice((prev) => ({
+                        ...prev,
+                        actualPartsUsed: e.target.value
+                          .split(",")
+                          .map((item) => item.trim())
+                          .filter((item) => item),
+                      }))
+                    }
+                    rows={2}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                    placeholder="List parts used, separated by commas..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-gray-300 text-sm font-medium mb-2">
+                    Final Service Notes
+                  </label>
+                  <textarea
+                    value={finalPrice.finalNotes}
+                    onChange={(e) =>
+                      setFinalPrice((prev) => ({
+                        ...prev,
+                        finalNotes: e.target.value,
+                      }))
+                    }
+                    rows={4}
+                    className="w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:outline-none focus:border-amber-500"
+                    placeholder="Describe the actual work done, any issues encountered, and final recommendations..."
+                  />
+                </div>
+
+                {selectedBooking.estimatedMinCost &&
+                  selectedBooking.estimatedMaxCost && (
+                    <div
+                      className={`rounded-lg p-4 border ${
+                        finalPrice.totalCost >=
+                          selectedBooking.estimatedMinCost &&
+                        finalPrice.totalCost <= selectedBooking.estimatedMaxCost
+                          ? "bg-green-500/10 border-green-500/20"
+                          : "bg-red-500/10 border-red-500/20"
+                      }`}
+                    >
+                      <div className="text-center">
+                        <div
+                          className={`font-bold text-lg ${
+                            finalPrice.totalCost >=
+                              selectedBooking.estimatedMinCost &&
+                            finalPrice.totalCost <=
+                              selectedBooking.estimatedMaxCost
+                              ? "text-green-400"
+                              : "text-red-400"
+                          }`}
+                        >
+                          {finalPrice.totalCost >=
+                            selectedBooking.estimatedMinCost &&
+                          finalPrice.totalCost <=
+                            selectedBooking.estimatedMaxCost ? (
+                            <>✅ Within approved price range</>
+                          ) : (
+                            <>⚠️ Outside approved price range</>
+                          )}
+                        </div>
+                        <div className="text-gray-300 text-sm mt-1">
+                          Approved: RM{" "}
+                          {selectedBooking.estimatedMinCost.toFixed(2)} - RM{" "}
+                          {selectedBooking.estimatedMaxCost.toFixed(2)}
+                          <br />
+                          Final: RM {finalPrice.totalCost.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    onClick={() => setIsFinalPriceModalOpen(false)}
+                    className="flex-1 bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitFinalPrice}
+                    disabled={isActionLoading || finalPrice.totalCost <= 0}
+                    className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
+                  >
+                    {isActionLoading ? "Submitting..." : "Submit Final Price"}
                   </button>
                 </div>
               </div>

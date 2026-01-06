@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { PrismaClient } from '@prisma/client';
+
+const prisma = new PrismaClient();
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,58 +10,129 @@ export async function GET(request: NextRequest) {
 
     if (!date) {
       return NextResponse.json(
-        { error: 'Date is required' },
+        { error: 'Date parameter is required' },
         { status: 400 }
       );
     }
 
-    // Get existing bookings for the date
-    const startDate = new Date(date);
-    const endDate = new Date(date);
-    endDate.setDate(endDate.getDate() + 1);
+    // Parse the date
+    const selectedDate = new Date(date);
+    if (isNaN(selectedDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid date format' },
+        { status: 400 }
+      );
+    }
 
+    // Set time to beginning of day for accurate comparison
+    const startOfDay = new Date(selectedDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Get all bookings for the selected date
     const existingBookings = await prisma.booking.findMany({
       where: {
         bookingDate: {
-          gte: startDate,
-          lt: endDate,
+          gte: startOfDay,
+          lte: endOfDay,
         },
         status: {
-          in: ['Confirmed', 'In Progress']
-        }
+          notIn: ['Cancelled', 'Rejected'],
+        },
       },
       select: {
-        bookingDate: true
-      }
+        id: true,
+        bookingDate: true,
+        duration: true,
+        status: true,
+      },
     });
 
-    // Generate time slots (9 AM to 5 PM, 30-minute intervals)
-    const timeSlots = [];
-    for (let hour = 9; hour <= 17; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-        const slotDateTime = new Date(`${date}T${timeString}`);
-        
-        // Check if slot is booked
-        const isBooked = existingBookings.some(booking => {
-          const bookingTime = new Date(booking.bookingDate);
-          return bookingTime.getHours() === hour && bookingTime.getMinutes() === minute;
-        });
+    // Define working hours (9 AM to 6 PM)
+    const workingHoursStart = 9;
+    const workingHoursEnd = 18;
+    const slotDuration = 2; // Each booking takes 2 hours
 
-        timeSlots.push({
-          date,
-          time: timeString,
-          available: !isBooked,
-          hour,
-          minute
-        });
-      }
+    // Generate all possible time slots
+    const allTimeSlots: Array<{
+      time: string;
+      hour: number;
+      datetime: Date;
+    }> = [];
+
+    for (let hour = workingHoursStart; hour < workingHoursEnd; hour++) {
+      // Generate slots every hour
+      const slotDateTime = new Date(selectedDate);
+      slotDateTime.setHours(hour, 0, 0, 0);
+      
+      allTimeSlots.push({
+        time: `${hour.toString().padStart(2, '0')}:00`,
+        hour: hour,
+        datetime: slotDateTime,
+      });
     }
 
-    return NextResponse.json({ availableSlots: timeSlots });
+    // Check availability for each slot
+    const availableSlots = allTimeSlots.map(slot => {
+      const slotStartTime = slot.datetime.getTime();
+      const slotEndTime = slotStartTime + (slotDuration * 60 * 60 * 1000);
+
+      // Check if this slot overlaps with any existing booking
+      const isBooked = existingBookings.some(booking => {
+        const bookingStartTime = booking.bookingDate.getTime();
+        const bookingEndTime = bookingStartTime + ((booking.duration || 2) * 60 * 60 * 1000);
+        
+        // Check for overlap
+        return (
+          (slotStartTime >= bookingStartTime && slotStartTime < bookingEndTime) ||
+          (slotEndTime > bookingStartTime && slotEndTime <= bookingEndTime) ||
+          (slotStartTime <= bookingStartTime && slotEndTime >= bookingEndTime)
+        );
+      });
+
+      // Check if slot is in the past
+      const isPast = slot.datetime < new Date();
+
+      return {
+        date: selectedDate.toISOString().split('T')[0],
+        time: slot.time,
+        available: !isBooked && !isPast,
+        hour: slot.hour,
+        minute: 0,
+        isPast: isPast,
+        isBooked: isBooked,
+      };
+    });
+
+    // Filter out slots that are booked or in the past
+    const filteredSlots = availableSlots.filter(slot => slot.available);
+
+    return NextResponse.json({
+      date,
+      availableSlots: filteredSlots,
+      allSlots: availableSlots, // For debugging - shows all slots with status
+      workingHours: {
+        start: workingHoursStart,
+        end: workingHoursEnd,
+        duration: slotDuration,
+      },
+      statistics: {
+        totalSlots: allTimeSlots.length,
+        available: filteredSlots.length,
+        booked: existingBookings.length,
+        past: availableSlots.filter(slot => slot.isPast && !slot.isBooked).length,
+      },
+    });
+
   } catch (error) {
+    console.error('Error fetching available slots:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch available slots' },
+      { 
+        error: 'Failed to fetch available slots',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }

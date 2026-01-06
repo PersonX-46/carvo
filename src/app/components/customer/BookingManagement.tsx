@@ -1,8 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import PriceApproval from "./PriceApproval";
-import PaymentButton from "./PaymentButton";
 
 interface ServiceBooking {
   id: number;
@@ -10,16 +8,25 @@ interface ServiceBooking {
   vehicleId: number;
   serviceId?: number;
   bookingDate: string;
-  status: "Pending" | "Confirmed" | "In Progress" | "Completed" | "Cancelled";
+  status:
+    | "Pending"
+    | "Confirmed"
+    | "In Progress"
+    | "Completed"
+    | "Cancelled"
+    | "Price Pending";
   reportedIssue: string | null;
   estimatedCost: number | null;
+  estimatedMinCost: number | null;
+  estimatedMaxCost: number | null;
+  finalCost: number | null;
   confirmed: boolean;
   duration: number | null;
   createdAt: string;
-  // Add price approval fields
-  priceApproved?: boolean | null;
-  priceRejected?: boolean | null;
-  rejectionReason?: string | null;
+  // Price approval fields
+  priceApproved: boolean | null;
+  priceRejected: boolean | null;
+  rejectionReason: string | null;
   vehicle: {
     model: string;
     registrationNumber: string;
@@ -79,61 +86,32 @@ const BookingManagement: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [view, setView] = useState<"calendar" | "list">("list");
   const [calendarView, setCalendarView] = useState<"month" | "week" | "day">(
     "month"
   );
   const [currentWeek, setCurrentWeek] = useState(0);
   const [error, setError] = useState("");
-  const [activeBookings, setActiveBookings] = useState<ServiceBooking[]>([]);
-  const [completedBookings, setCompletedBookings] = useState<ServiceBooking[]>(
-    []
-  );
-  const [pendingBookings, setPendingBookings] = useState<ServiceBooking[]>([]);
-  const [cancelledBookings, setCancelledBookings] = useState<ServiceBooking[]>(
-    []
-  );
   const [filter, setFilter] = useState<BookingFilter>("all");
   const [filteredBookings, setFilteredBookings] = useState<ServiceBooking[]>(
     []
   );
-  const [customerId, setCustomerId] = useState<number>(1); // Get from your auth system
 
-  // Add state for price approval modal
+  // Price approval modal states
   const [isPriceApprovalModalOpen, setIsPriceApprovalModalOpen] =
     useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeActionBooking, setActiveActionBooking] =
+    useState<ServiceBooking | null>(null);
 
-  // Fetch real data from API
+  // Price approval count
+  const [priceApprovalCount, setPriceApprovalCount] = useState(0);
+
+  // Fetch data
   useEffect(() => {
     fetchData();
-    // In real app, get customerId from auth context or localStorage
-    const storedCustomerId = localStorage.getItem("customerId");
-    if (storedCustomerId) {
-      setCustomerId(parseInt(storedCustomerId));
-    }
   }, []);
-
-  // Categorize bookings whenever bookings change
-  useEffect(() => {
-    const active = bookings.filter(
-      (booking) =>
-        booking.status === "Confirmed" || booking.status === "In Progress"
-    );
-    const completed = bookings.filter(
-      (booking) => booking.status === "Completed"
-    );
-    const pending = bookings.filter((booking) => booking.status === "Pending");
-    const cancelled = bookings.filter(
-      (booking) => booking.status === "Cancelled"
-    );
-
-    setActiveBookings(active);
-    setCompletedBookings(completed);
-    setPendingBookings(pending);
-    setCancelledBookings(cancelled);
-  }, [bookings]);
 
   // Apply filter whenever bookings or filter changes
   useEffect(() => {
@@ -142,70 +120,93 @@ const BookingManagement: React.FC = () => {
         setFilteredBookings(bookings);
         break;
       case "active":
-        setFilteredBookings(activeBookings);
+        setFilteredBookings(
+          bookings.filter(
+            (b) =>
+              b.status === "Confirmed" ||
+              b.status === "In Progress" ||
+              b.status === "Price Pending"
+          )
+        );
         break;
       case "completed":
-        setFilteredBookings(completedBookings);
+        setFilteredBookings(bookings.filter((b) => b.status === "Completed"));
         break;
       case "pending":
-        setFilteredBookings(pendingBookings);
+        setFilteredBookings(bookings.filter((b) => b.status === "Pending"));
         break;
       case "cancelled":
-        setFilteredBookings(cancelledBookings);
+        setFilteredBookings(bookings.filter((b) => b.status === "Cancelled"));
         break;
+      // In your useEffect for applying filters (around line 47):
       case "priceApproval":
         // Show bookings that need price approval
         const needsApproval = bookings.filter(
-          (booking) =>
-            booking.status === "Confirmed" &&
-            booking.estimatedCost &&
-            !booking.priceApproved &&
-            !booking.priceRejected
+          (b) =>
+            (b.status === "Confirmed" || b.status === "Price Pending") &&
+            (b.estimatedCost !== null || b.estimatedMinCost !== null) &&
+            b.priceApproved === false &&
+            b.priceRejected === false
         );
         setFilteredBookings(needsApproval);
         break;
       default:
         setFilteredBookings(bookings);
     }
-  }, [
-    filter,
-    bookings,
-    activeBookings,
-    completedBookings,
-    pendingBookings,
-    cancelledBookings,
-  ]);
+  }, [filter, bookings]);
+
+  // Calculate price approval count
+  // Calculate price approval count
+  useEffect(() => {
+    const count = bookings.filter(needsPriceApproval).length;
+    console.log("Price approval count:", count);
+    setPriceApprovalCount(count);
+  }, [bookings]);
+
+  // Helper function to check if booking needs price approval
+  // Update the needsPriceApproval function in your BookingManagement component:
+  const needsPriceApproval = (booking: ServiceBooking): boolean => {
+    // Accept both "Confirmed" and "Price Pending" statuses
+    const isEligibleStatus =
+      booking.status === "Confirmed" ||
+      booking.status === "Price Pending";
+
+    const hasPriceEstimate =
+      booking.estimatedCost !== null ||
+      booking.estimatedMinCost !== null ||
+      booking.estimatedMaxCost !== null;
+
+    const needsApproval =
+      booking.priceApproved === false && booking.priceRejected === false;
+
+    return isEligibleStatus && hasPriceEstimate && needsApproval;
+  };
 
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setError("");
 
-      // Fetch both bookings and vehicles in parallel for better performance
+      // Fetch bookings and vehicles in parallel
       const [bookingsResponse, vehiclesResponse] = await Promise.all([
         fetch("/api/customer/bookings"),
         fetch("/api/customer/vehicles"),
       ]);
 
-      // Handle bookings response
       if (!bookingsResponse.ok) {
         throw new Error("Failed to fetch bookings");
       }
+
       const bookingsResult = await bookingsResponse.json();
       setBookings(bookingsResult.bookings || []);
 
-      // Handle vehicles response
       if (vehiclesResponse.ok) {
         const vehiclesResult = await vehiclesResponse.json();
         setVehicles(vehiclesResult.vehicles || []);
-      } else {
-        console.warn("Failed to fetch vehicles, using empty array");
-        setVehicles([]);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
       setError("Failed to load booking data");
-      // Set empty arrays to prevent further errors
       setBookings([]);
       setVehicles([]);
     } finally {
@@ -213,13 +214,165 @@ const BookingManagement: React.FC = () => {
     }
   };
 
-  // Function to handle price approval
+  // Calendar functions
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+
+    const days = [];
+    const startDay = firstDay.getDay();
+
+    // Add empty cells for days before the first day of the month
+    for (let i = 0; i < startDay; i++) {
+      days.push(null);
+    }
+
+    // Add days of the month
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push(new Date(year, month, i));
+    }
+
+    return days;
+  };
+
+  const getDaysInWeek = (date: Date, weekOffset: number = 0) => {
+    const startDate = new Date(date);
+    const day = startDate.getDay();
+    startDate.setDate(startDate.getDate() - day + weekOffset * 7);
+
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const currentDate = new Date(startDate);
+      currentDate.setDate(startDate.getDate() + i);
+      days.push(currentDate);
+    }
+    return days;
+  };
+
+  const getTimeSlots = (date: Date): TimeSlot[] => {
+    const slots: TimeSlot[] = [];
+    for (let hour = 8; hour <= 17; hour++) {
+      for (let minute = 0; minute < 60; minute += 30) {
+        const timeString = `${hour.toString().padStart(2, "0")}:${minute
+          .toString()
+          .padStart(2, "0")}`;
+        const slotBookings = bookings.filter((booking) => {
+          const bookingDate = new Date(booking.bookingDate);
+          return (
+            bookingDate.toDateString() === date.toDateString() &&
+            bookingDate.getHours() === hour &&
+            bookingDate.getMinutes() === minute
+          );
+        });
+
+        slots.push({
+          time: timeString,
+          hour,
+          minute,
+          bookings: slotBookings,
+        });
+      }
+    }
+    return slots;
+  };
+
+  const getBookingsForDate = (date: Date) => {
+    return bookings.filter((booking) => {
+      const bookingDate = new Date(booking.bookingDate);
+      return bookingDate.toDateString() === date.toDateString();
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case "pending":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "confirmed":
+      case "price pending":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "in progress":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "completed":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "cancelled":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+    }
+  };
+
+  const navigateMonth = (direction: "prev" | "next") => {
+    setCurrentDate((prev) => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() + (direction === "next" ? 1 : -1));
+      return newDate;
+    });
+  };
+
+  const navigateWeek = (direction: "prev" | "next") => {
+    setCurrentWeek((prev) => prev + (direction === "next" ? 1 : -1));
+  };
+
+  const getFilterCount = (filterType: BookingFilter) => {
+    switch (filterType) {
+      case "all":
+        return bookings.length;
+      case "active":
+        return bookings.filter(
+          (b) =>
+            b.status === "Confirmed" ||
+            b.status === "In Progress" ||
+            b.status === "Price Pending"
+        ).length;
+      case "completed":
+        return bookings.filter((b) => b.status === "Completed").length;
+      case "pending":
+        return bookings.filter((b) => b.status === "Pending" && !b.confirmed)
+          .length;
+      case "cancelled":
+        return bookings.filter((b) => b.status === "Cancelled").length;
+      case "priceApproval":
+        // CORRECT LOGIC: Count bookings that need price approval
+        return bookings.filter(
+          (b) =>
+            (b.status === "Confirmed" || b.status === "Price Pending") &&
+            (b.estimatedCost !== null || b.estimatedMinCost !== null) &&
+            b.priceApproved === false &&
+            b.priceRejected === false
+        ).length;
+      default:
+        return 0;
+    }
+  };
+
+  const getFilterLabel = (filterType: BookingFilter) => {
+    switch (filterType) {
+      case "all":
+        return "All Bookings";
+      case "active":
+        return "Active";
+      case "completed":
+        return "Completed";
+      case "pending":
+        return "Pending";
+      case "cancelled":
+        return "Cancelled";
+      case "priceApproval":
+        return "Price Approval";
+      default:
+        return "All";
+    }
+  };
+
   const handlePriceApproval = async (
     bookingId: number,
     approved: boolean,
     reason?: string
   ) => {
-    if (!approved && !reason) {
+    if (!approved && !reason?.trim()) {
       alert("Please provide a reason for rejecting the price");
       return;
     }
@@ -253,7 +406,8 @@ const BookingManagement: React.FC = () => {
                 ...booking,
                 priceApproved: approved,
                 priceRejected: !approved,
-                rejectionReason: !approved ? reason : null,
+                rejectionReason: !approved ? reason || null : null,
+                status: approved ? "Confirmed" : "Pending",
               }
             : booking
         )
@@ -261,13 +415,13 @@ const BookingManagement: React.FC = () => {
 
       // Close modal and reset
       setIsPriceApprovalModalOpen(false);
-      setSelectedBooking(null);
+      setActiveActionBooking(null);
       setRejectionReason("");
 
       alert(
         approved
-          ? "Price approved successfully!"
-          : "Price rejected. The technician will contact you with a revised estimate."
+          ? "✅ Price approved successfully! Service will begin shortly."
+          : "❌ Price rejected. The technician will contact you with a revised estimate."
       );
     } catch (error) {
       console.error("Error updating price approval:", error);
@@ -318,119 +472,13 @@ const BookingManagement: React.FC = () => {
     }
   };
 
-  // Get days in month
-  const getDaysInMonth = (date: Date) => {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-
-    const days = [];
-    const startDay = firstDay.getDay();
-
-    // Add empty cells for days before the first day of the month
-    for (let i = 0; i < startDay; i++) {
-      days.push(null);
-    }
-
-    // Add days of the month
-    for (let i = 1; i <= daysInMonth; i++) {
-      days.push(new Date(year, month, i));
-    }
-
-    return days;
-  };
-
-  // Get days in week
-  const getDaysInWeek = (date: Date, weekOffset: number = 0) => {
-    const startDate = new Date(date);
-    const day = startDate.getDay();
-    startDate.setDate(startDate.getDate() - day + weekOffset * 7);
-
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const currentDate = new Date(startDate);
-      currentDate.setDate(startDate.getDate() + i);
-      days.push(currentDate);
-    }
-    return days;
-  };
-
-  // Get time slots for a day
-  const getTimeSlots = (date: Date): TimeSlot[] => {
-    const slots: TimeSlot[] = [];
-    for (let hour = 8; hour <= 17; hour++) {
-      for (let minute = 0; minute < 60; minute += 30) {
-        const timeString = `${hour.toString().padStart(2, "0")}:${minute
-          .toString()
-          .padStart(2, "0")}`;
-        const slotBookings = bookings.filter((booking) => {
-          const bookingDate = new Date(booking.bookingDate);
-          return (
-            bookingDate.toDateString() === date.toDateString() &&
-            bookingDate.getHours() === hour &&
-            bookingDate.getMinutes() === minute
-          );
-        });
-
-        slots.push({
-          time: timeString,
-          hour,
-          minute,
-          bookings: slotBookings,
-        });
-      }
-    }
-    return slots;
-  };
-
-  const getBookingsForDate = (date: Date) => {
-    return bookings.filter((booking) => {
-      const bookingDate = new Date(booking.bookingDate);
-      return bookingDate.toDateString() === date.toDateString();
-    });
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "Pending":
-        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
-      case "Confirmed":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "In Progress":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      case "Completed":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "Cancelled":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-    }
-  };
-
-  const navigateMonth = (direction: "prev" | "next") => {
-    setCurrentDate((prev) => {
-      const newDate = new Date(prev);
-      newDate.setMonth(prev.getMonth() + (direction === "next" ? 1 : -1));
-      return newDate;
-    });
-  };
-
-  const navigateWeek = (direction: "prev" | "next") => {
-    setCurrentWeek((prev) => prev + (direction === "next" ? 1 : -1));
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  const StatusBadge = ({ status }: { status: string }) => {
+  const StatusBadge = ({
+    status,
+    booking,
+  }: {
+    status: string;
+    booking?: ServiceBooking;
+  }) => {
     const getStatusIcon = (status: string) => {
       switch (status.toLowerCase()) {
         case "completed":
@@ -443,10 +491,22 @@ const BookingManagement: React.FC = () => {
           return "⏳";
         case "cancelled":
           return "❌";
+        case "price pending":
+          return "💰";
         default:
           return "📝";
       }
     };
+
+    // Special badge for price approval needed
+    if (booking && needsPriceApproval(booking)) {
+      return (
+        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30 animate-pulse">
+          <span className="mr-1">💰</span>
+          Price Approval Needed
+        </span>
+      );
+    }
 
     return (
       <span
@@ -458,6 +518,15 @@ const BookingManagement: React.FC = () => {
         {status}
       </span>
     );
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
   const getServiceType = (booking: ServiceBooking) => {
@@ -474,6 +543,66 @@ const BookingManagement: React.FC = () => {
     return "General Service";
   };
 
+  const formatPriceDisplay = (booking: ServiceBooking) => {
+    if (booking.estimatedMinCost && booking.estimatedMaxCost) {
+      return `RM ${booking.estimatedMinCost.toFixed(
+        2
+      )} - RM ${booking.estimatedMaxCost.toFixed(2)}`;
+    } else if (booking.estimatedCost) {
+      return `RM ${booking.estimatedCost.toFixed(2)}`;
+    }
+    return "Price not set";
+  };
+
+  const PriceApprovalButtons = ({ booking }: { booking: ServiceBooking }) => {
+    if (!needsPriceApproval(booking)) return null;
+
+    return (
+      <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h5 className="text-blue-400 font-semibold">
+              Price Estimate Ready
+            </h5>
+            <p className="text-sm text-gray-300">
+              {formatPriceDisplay(booking)} • Please approve to continue
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (
+                  confirm(
+                    `Approve price estimate of ${formatPriceDisplay(booking)}?`
+                  )
+                ) {
+                  handlePriceApproval(booking.id, true);
+                }
+              }}
+              disabled={isSubmitting}
+              className="bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed"
+            >
+              ✅ Approve
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveActionBooking(booking);
+                setIsPriceApprovalModalOpen(true);
+              }}
+              disabled={isSubmitting}
+              className="bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:cursor-not-allowed"
+            >
+              ❌ Reject
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Calendar data
   const days = getDaysInMonth(currentDate);
   const weekDays = getDaysInWeek(currentDate, currentWeek);
   const monthNames = [
@@ -500,51 +629,6 @@ const BookingManagement: React.FC = () => {
     "Friday",
     "Saturday",
   ];
-
-  const getFilterCount = (filterType: BookingFilter) => {
-    switch (filterType) {
-      case "all":
-        return bookings.length;
-      case "active":
-        return activeBookings.length;
-      case "completed":
-        return completedBookings.length;
-      case "pending":
-        return pendingBookings.length;
-      case "cancelled":
-        return cancelledBookings.length;
-      case "priceApproval":
-        // Count bookings that need price approval
-        return bookings.filter(
-          (booking) =>
-            booking.status === "Confirmed" &&
-            booking.estimatedCost &&
-            !booking.priceApproved &&
-            !booking.priceRejected
-        ).length;
-      default:
-        return 0;
-    }
-  };
-
-  const getFilterLabel = (filterType: BookingFilter) => {
-    switch (filterType) {
-      case "all":
-        return "All Bookings";
-      case "active":
-        return "Active";
-      case "completed":
-        return "Completed";
-      case "pending":
-        return "Pending";
-      case "cancelled":
-        return "Cancelled";
-      case "priceApproval":
-        return "Price Approval";
-      default:
-        return "All";
-    }
-  };
 
   if (isLoading) {
     return (
@@ -644,7 +728,7 @@ const BookingManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Overview - UPDATED with 6th column for Price Approvals */}
+      {/* Stats Overview */}
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
@@ -666,7 +750,7 @@ const BookingManagement: React.FC = () => {
           onClick={() => setFilter("active")}
         >
           <div className="text-2xl font-bold text-blue-400">
-            {activeBookings.length}
+            {getFilterCount("active")}
           </div>
           <div className="text-gray-400 text-sm">Active</div>
         </div>
@@ -679,7 +763,7 @@ const BookingManagement: React.FC = () => {
           onClick={() => setFilter("completed")}
         >
           <div className="text-2xl font-bold text-green-400">
-            {completedBookings.length}
+            {getFilterCount("completed")}
           </div>
           <div className="text-gray-400 text-sm">Completed</div>
         </div>
@@ -692,7 +776,7 @@ const BookingManagement: React.FC = () => {
           onClick={() => setFilter("pending")}
         >
           <div className="text-2xl font-bold text-orange-400">
-            {pendingBookings.length}
+            {getFilterCount("pending")}
           </div>
           <div className="text-gray-400 text-sm">Pending</div>
         </div>
@@ -705,7 +789,7 @@ const BookingManagement: React.FC = () => {
           onClick={() => setFilter("cancelled")}
         >
           <div className="text-2xl font-bold text-red-400">
-            {cancelledBookings.length}
+            {getFilterCount("cancelled")}
           </div>
           <div className="text-gray-400 text-sm">Cancelled</div>
         </div>
@@ -719,59 +803,16 @@ const BookingManagement: React.FC = () => {
           onClick={() => setFilter("priceApproval")}
         >
           <div className="text-2xl font-bold text-purple-400">
-            {getFilterCount("priceApproval")}
+            {priceApprovalCount}
           </div>
           <div className="text-gray-400 text-sm">Price Approvals</div>
-          {filter === "priceApproval" && (
-            <div className="text-xs text-purple-300 mt-1">
-              Needs your attention
+          {priceApprovalCount > 0 && (
+            <div className="text-xs text-purple-300 mt-1 animate-pulse">
+              ⚠️ Needs your attention
             </div>
           )}
         </div>
       </div>
-
-      {/* Filter Tabs (List View Only) - UPDATED with Price Approval */}
-      {view === "list" && (
-        <div className="flex flex-wrap gap-2">
-          {(
-            [
-              "all",
-              "active",
-              "completed",
-              "pending",
-              "cancelled",
-              "priceApproval",
-            ] as BookingFilter[]
-          ).map((filterType) => (
-            <button
-              key={filterType}
-              onClick={() => setFilter(filterType)}
-              className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                filter === filterType
-                  ? (() => {
-                      switch (filterType) {
-                        case "active":
-                          return "bg-blue-500 text-white";
-                        case "completed":
-                          return "bg-green-500 text-white";
-                        case "pending":
-                          return "bg-orange-500 text-white";
-                        case "cancelled":
-                          return "bg-red-500 text-white";
-                        case "priceApproval":
-                          return "bg-purple-500 text-white";
-                        default:
-                          return "bg-amber-500 text-white";
-                      }
-                    })()
-                  : "bg-gray-800 text-gray-400 hover:text-white"
-              }`}
-            >
-              {getFilterLabel(filterType)} ({getFilterCount(filterType)})
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Calendar View */}
       {view === "calendar" && (
@@ -1021,7 +1062,7 @@ const BookingManagement: React.FC = () => {
                       key={index}
                       className="grid grid-cols-8 border-b border-gray-800 last:border-b-0"
                     >
-                      <div className="p-3 border-r border-gray-800 text-sm text-gray-400 text-right pr-4">
+                      <div className="p-3 border-r border-gray-800 text-sm text-gray-400 text-right">
                         {timeString}
                       </div>
                       {weekDays.map((date, dayIndex) => {
@@ -1126,7 +1167,7 @@ const BookingManagement: React.FC = () => {
                             </div>
                             <div className="text-right">
                               <div className="text-amber-400 font-bold">
-                                RM {booking.estimatedCost || "0"}
+                                {formatPriceDisplay(booking)}
                               </div>
                               <div className="text-xs text-gray-400">
                                 {booking.duration || 1}h
@@ -1219,31 +1260,32 @@ const BookingManagement: React.FC = () => {
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <StatusBadge status={booking.status} />
-                        {booking.estimatedCost && (
-                          <div className="flex flex-col items-end">
-                            <span className="text-green-400 font-bold">
-                              RM {booking.estimatedCost.toFixed(2)}
+                        <StatusBadge
+                          status={booking.status}
+                          booking={booking}
+                        />
+                        {(booking.estimatedCost ||
+                          booking.estimatedMinCost) && (
+                          <div className="text-right">
+                            <span className="text-amber-400 font-bold">
+                              {formatPriceDisplay(booking)}
                             </span>
-                            {/* Show price approval status */}
-                            {booking.estimatedCost &&
-                              booking.status === "Confirmed" && (
-                                <span
-                                  className={`text-xs px-2 py-1 rounded-full mt-1 ${
-                                    booking.priceApproved
-                                      ? "bg-green-500/20 text-green-400"
-                                      : booking.priceRejected
-                                      ? "bg-red-500/20 text-red-400"
-                                      : "bg-blue-500/20 text-blue-400"
-                                  }`}
-                                >
-                                  {booking.priceApproved
-                                    ? "✅ Approved"
-                                    : booking.priceRejected
-                                    ? "❌ Rejected"
-                                    : "⏳ Needs Approval"}
-                                </span>
-                              )}
+                            {/* Price approval status indicator */}
+                            {needsPriceApproval(booking) && (
+                              <div className="text-xs text-purple-400 mt-1 animate-pulse">
+                                ⚠️ Needs approval
+                              </div>
+                            )}
+                            {booking.priceApproved && (
+                              <div className="text-xs text-green-400 mt-1">
+                                ✅ Approved
+                              </div>
+                            )}
+                            {booking.priceRejected && (
+                              <div className="text-xs text-red-400 mt-1">
+                                ❌ Rejected
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1279,101 +1321,8 @@ const BookingManagement: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Worker Contact Section in List View */}
-                    {booking.service?.worker &&
-                      booking.status !== "Pending" && (
-                        <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                          <h4 className="text-blue-400 font-semibold mb-3 flex items-center">
-                            <span className="mr-2">👨‍🔧</span>
-                            Assigned Technician
-                            {booking.service.worker.position && (
-                              <span className="ml-2 text-sm bg-blue-500/20 text-blue-400 px-2 py-1 rounded">
-                                {booking.service.worker.position}
-                              </span>
-                            )}
-                          </h4>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <p className="text-gray-400 text-sm">Name</p>
-                              <p className="text-white font-medium">
-                                {booking.service.worker.name}
-                              </p>
-                              {booking.service.worker.rating && (
-                                <div className="flex items-center mt-1">
-                                  <span className="text-yellow-400 mr-1">
-                                    ⭐
-                                  </span>
-                                  <span className="text-gray-300 text-sm">
-                                    {booking.service.worker.rating.toFixed(1)}{" "}
-                                    rating
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div>
-                              <p className="text-gray-400 text-sm mb-2">
-                                Quick Contact
-                              </p>
-                              <div className="flex flex-wrap gap-2">
-                                {booking.service.worker.phone && (
-                                  <>
-                                    <a
-                                      href={`tel:${booking.service.worker.phone}`}
-                                      className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-1"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <span>📞</span>
-                                      Call
-                                    </a>
-                                    <a
-                                      href={`https://wa.me/${booking.service.worker.phone.replace(
-                                        /\D/g,
-                                        ""
-                                      )}`}
-                                      className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-1"
-                                      onClick={(e) => e.stopPropagation()}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
-                                      <span>💬</span>
-                                      WhatsApp
-                                    </a>
-                                  </>
-                                )}
-                                <a
-                                  href={`mailto:${booking.service.worker.email}`}
-                                  className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-1"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <span>✉️</span>
-                                  Email
-                                </a>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                    {/* Repair Notes */}
-                    {booking.service?.repairNotes && (
-                      <div className="mb-4">
-                        <p className="text-gray-400 text-sm mb-2">
-                          Technician Notes
-                        </p>
-                        <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
-                          {booking.service.repairNotes}
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="flex items-center text-sm text-gray-400">
-                      <span>
-                        📅 Booked on{" "}
-                        {new Date(booking.createdAt).toLocaleDateString()}
-                      </span>
-                    </div>
+                    {/* Price Approval Buttons - shown inline for price approval needed */}
+                    <PriceApprovalButtons booking={booking} />
                   </div>
 
                   <div className="flex lg:flex-col gap-3">
@@ -1407,12 +1356,12 @@ const BookingManagement: React.FC = () => {
         </div>
       )}
 
-      {/* Price Approval Section (when filter is priceApproval) */}
+      {/* Price Approval Section (when filter is priceApproval in list view) */}
       {view === "list" && filter === "priceApproval" && (
         <div className="mt-4">
           <div className="mb-6">
             <h3 className="text-xl font-bold text-white mb-2">
-              Price Approvals Needed
+              Price Approvals Needed ({priceApprovalCount})
             </h3>
             <p className="text-gray-400">
               Review and approve price estimates from technicians before they
@@ -1420,8 +1369,171 @@ const BookingManagement: React.FC = () => {
             </p>
           </div>
 
-          {/* You can either use the PriceApproval component or show your own list */}
-          <PriceApproval customerId={customerId} />
+          {priceApprovalCount === 0 ? (
+            <div className="text-center py-12 bg-gray-800/30 rounded-2xl border border-gray-700">
+              <div className="text-gray-400 text-6xl mb-4">✅</div>
+              <h3 className="text-white font-semibold text-lg mb-2">
+                All Price Estimates Approved
+              </h3>
+              <p className="text-gray-400 mb-4">
+                You don't have any pending price approvals.
+              </p>
+              <button
+                onClick={() => setFilter("all")}
+                className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                View All Bookings
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-purple-500/30 p-6 hover:border-purple-500/50 transition-all duration-300"
+                  onClick={() => setSelectedBooking(booking)}
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h3 className="text-white font-semibold text-xl mb-1">
+                            {booking.vehicle.model}
+                          </h3>
+                          <p className="text-gray-400 text-sm">
+                            {booking.vehicle.registrationNumber} •{" "}
+                            {booking.vehicle.year}
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <StatusBadge
+                            status={booking.status}
+                            booking={booking}
+                          />
+                          <div className="text-right">
+                            <div className="text-amber-400 font-bold text-2xl">
+                              {formatPriceDisplay(booking)}
+                            </div>
+                            <div className="text-xs text-gray-400">
+                              Technician's estimate
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-gray-400 text-sm">
+                            Scheduled Time
+                          </p>
+                          <p className="text-white font-medium">
+                            {new Date(booking.bookingDate).toLocaleDateString()}
+                          </p>
+                          <p className="text-amber-400 text-sm">
+                            {formatTime(booking.bookingDate)} •{" "}
+                            {booking.duration || 1}h
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 text-sm">Service Type</p>
+                          <p className="text-white font-medium">
+                            {getServiceType(booking)}
+                          </p>
+                          {booking.service?.worker && (
+                            <p className="text-gray-400 text-sm mt-1">
+                              Technician: {booking.service.worker.name}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {booking.reportedIssue && (
+                        <div className="mb-4">
+                          <p className="text-gray-400 text-sm mb-2">
+                            Reported Issue
+                          </p>
+                          <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
+                            {booking.reportedIssue}
+                          </p>
+                        </div>
+                      )}
+
+                      {booking.service?.repairNotes && (
+                        <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                          <p className="text-gray-400 text-sm mb-2">
+                            Technician's Assessment
+                          </p>
+                          <p className="text-white">
+                            {booking.service.repairNotes}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex lg:flex-col gap-3 min-w-[250px]">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (
+                            confirm(
+                              `Approve price estimate of ${formatPriceDisplay(
+                                booking
+                              )}?`
+                            )
+                          ) {
+                            handlePriceApproval(booking.id, true);
+                          }
+                        }}
+                        disabled={isSubmitting}
+                        className="bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? (
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          <>
+                            <span className="mr-2">✅</span>
+                            Approve Price
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveActionBooking(booking);
+                          setIsPriceApprovalModalOpen(true);
+                        }}
+                        disabled={isSubmitting}
+                        className="bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
+                      >
+                        <>
+                          <span className="mr-2">❌</span>
+                          Reject Price
+                        </>
+                      </button>
+                      {booking.service?.worker?.phone && (
+                        <a
+                          href={`https://wa.me/${booking.service.worker.phone.replace(
+                            /\D/g,
+                            ""
+                          )}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold transition-all text-center"
+                        >
+                          <span className="mr-2">💬</span>
+                          Contact Technician
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -1481,7 +1593,10 @@ const BookingManagement: React.FC = () => {
                     <div className="space-y-3">
                       <div>
                         <p className="text-gray-400 text-sm">Status</p>
-                        <StatusBadge status={selectedBooking.status} />
+                        <StatusBadge
+                          status={selectedBooking.status}
+                          booking={selectedBooking}
+                        />
                       </div>
                       <div>
                         <p className="text-gray-400 text-sm">
@@ -1505,163 +1620,83 @@ const BookingManagement: React.FC = () => {
                       <div>
                         <p className="text-gray-400 text-sm">Estimated Cost</p>
                         <p className="text-amber-400 text-xl font-bold">
-                          RM {selectedBooking.estimatedCost || "0"}
+                          {formatPriceDisplay(selectedBooking)}
                         </p>
                         {/* Price approval status in modal */}
-                        {selectedBooking.estimatedCost &&
-                          selectedBooking.status === "Confirmed" && (
-                            <div
-                              className={`text-sm mt-2 px-3 py-1 rounded-full inline-block ${
-                                selectedBooking.priceApproved
-                                  ? "bg-green-500/20 text-green-400"
-                                  : selectedBooking.priceRejected
-                                  ? "bg-red-500/20 text-red-400"
-                                  : "bg-blue-500/20 text-blue-400"
-                              }`}
-                            >
-                              {selectedBooking.priceApproved
-                                ? "✅ Price Approved"
-                                : selectedBooking.priceRejected
-                                ? `❌ Price Rejected${
-                                    selectedBooking.rejectionReason
-                                      ? `: ${selectedBooking.rejectionReason}`
-                                      : ""
-                                  }`
-                                : "⏳ Needs Your Approval"}
-                            </div>
-                          )}
+                        {needsPriceApproval(selectedBooking) && (
+                          <div className="text-sm mt-2 px-3 py-1 rounded-full inline-block bg-blue-500/20 text-blue-400">
+                            ⏳ Needs Your Approval
+                          </div>
+                        )}
+                        {selectedBooking.priceApproved && (
+                          <div className="text-sm mt-2 px-3 py-1 rounded-full inline-block bg-green-500/20 text-green-400">
+                            ✅ Price Approved
+                          </div>
+                        )}
+                        {selectedBooking.priceRejected && (
+                          <div className="text-sm mt-2 px-3 py-1 rounded-full inline-block bg-red-500/20 text-red-400">
+                            ❌ Price Rejected
+                            {selectedBooking.rejectionReason && (
+                              <span>: {selectedBooking.rejectionReason}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
+
                 {/* Price Approval Section in Modal */}
-                {selectedBooking.estimatedCost &&
-                  selectedBooking.status === "Confirmed" &&
-                  !selectedBooking.priceApproved &&
-                  !selectedBooking.priceRejected && (
-                    <div className="space-y-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                      <h4 className="text-lg font-semibold text-blue-400">
-                        Price Approval Required
-                      </h4>
-                      <p className="text-gray-300">
-                        The technician has provided a price estimate for your
-                        service. Please review and approve or reject it before
-                        work can begin.
-                      </p>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() =>
-                            handlePriceApproval(selectedBooking.id, true)
-                          }
-                          disabled={isSubmitting}
-                          className="bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-6 py-2 rounded-lg transition-all disabled:cursor-not-allowed"
-                        >
-                          {isSubmitting ? (
-                            <div className="flex items-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Processing...
-                            </div>
-                          ) : (
-                            `✅ Approve RM ${selectedBooking.estimatedCost.toFixed(
-                              2
-                            )}`
-                          )}
-                        </button>
-                        <button
-                          onClick={() => {
-                            setIsPriceApprovalModalOpen(true);
-                          }}
-                          disabled={isSubmitting}
-                          className="bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-6 py-2 rounded-lg transition-all disabled:cursor-not-allowed"
-                        >
-                          ❌ Reject Price
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                {selectedBooking.status === "Completed" && (
-                  <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                    <h4 className="text-lg font-semibold text-green-400 mb-3">
-                      Complete Payment
+                {needsPriceApproval(selectedBooking) && (
+                  <div className="space-y-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                    <h4 className="text-lg font-semibold text-blue-400">
+                      Price Approval Required
                     </h4>
-                    <PaymentButton
-                      bookingId={selectedBooking.id}
-                      amount={selectedBooking.estimatedCost || 0}
-                      vehicleModel={selectedBooking.vehicle.model}
-                      registrationNumber={
-                        selectedBooking.vehicle.registrationNumber
-                      }
-                      customerId={customerId}
-                    />
-                    <p className="text-sm text-gray-400 mt-2">
-                      Service completed successfully. Please complete payment to
-                      receive your invoice.
+                    <p className="text-gray-300">
+                      The technician has provided a price estimate for your
+                      service. Please review and approve or reject it before
+                      work can begin.
                     </p>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => {
+                          if (
+                            confirm(
+                              `Approve price estimate of ${formatPriceDisplay(
+                                selectedBooking
+                              )}?`
+                            )
+                          ) {
+                            handlePriceApproval(selectedBooking.id, true);
+                          }
+                        }}
+                        disabled={isSubmitting}
+                        className="bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-6 py-2 rounded-lg transition-all disabled:cursor-not-allowed"
+                      >
+                        {isSubmitting ? (
+                          <div className="flex items-center gap-2">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Processing...
+                          </div>
+                        ) : (
+                          `✅ Approve Price`
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setActiveActionBooking(selectedBooking);
+                          setIsPriceApprovalModalOpen(true);
+                        }}
+                        disabled={isSubmitting}
+                        className="bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-6 py-2 rounded-lg transition-all disabled:cursor-not-allowed"
+                      >
+                        ❌ Reject Price
+                      </button>
+                    </div>
                   </div>
                 )}
-                {/* Worker Contact Information */}
-                {selectedBooking.service?.worker &&
-                  selectedBooking.status !== "Pending" && (
-                    <div className="space-y-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                      <h4 className="text-lg font-semibold text-blue-400 flex items-center">
-                        <span className="mr-2">👨‍🔧</span>
-                        Assigned Technician
-                      </h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-gray-400 text-sm">Name</p>
-                          <p className="text-white font-medium text-lg">
-                            {selectedBooking.service.worker.name}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm">
-                            Contact Information
-                          </p>
-                          <div className="space-y-2 mt-2">
-                            {selectedBooking.service.worker.phone && (
-                              <div className="flex items-center">
-                                <span className="text-gray-400 mr-3">📞</span>
-                                <a
-                                  href={`tel:${selectedBooking.service.worker.phone}`}
-                                  className="text-blue-400 hover:text-blue-300 transition-colors"
-                                >
-                                  {selectedBooking.service.worker.phone}
-                                </a>
-                              </div>
-                            )}
-                            <div className="flex items-center">
-                              <span className="text-gray-400 mr-3">✉️</span>
-                              <a
-                                href={`mailto:${selectedBooking.service.worker.email}`}
-                                className="text-blue-400 hover:text-blue-300 transition-colors"
-                              >
-                                {selectedBooking.service.worker.email}
-                              </a>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex gap-3 mt-4">
-                        {selectedBooking.service.worker.phone && (
-                          <a
-                            href={`tel:${selectedBooking.service.worker.phone}`}
-                            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded-lg text-center transition-colors flex items-center justify-center"
-                          >
-                            <span className="mr-2">📞</span>
-                            Call Technician
-                          </a>
-                        )}
-                        <a
-                          href={`mailto:${selectedBooking.service.worker.email}`}
-                          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 px-4 rounded-lg text-center transition-colors flex items-center justify-center"
-                        >
-                          <span className="mr-2">✉️</span>
-                          Send Email
-                        </a>
-                      </div>
-                    </div>
-                  )}
+
+                {/* Additional booking details */}
                 <div className="space-y-4">
                   <h4 className="text-lg font-semibold text-amber-400 flex items-center">
                     <span className="mr-2">🔧</span>
@@ -1695,6 +1730,7 @@ const BookingManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
+
                 {/* Action Buttons */}
                 <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
                   <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
@@ -1721,31 +1757,42 @@ const BookingManagement: React.FC = () => {
       )}
 
       {/* Price Rejection Modal */}
-      {isPriceApprovalModalOpen && selectedBooking && (
+      {isPriceApprovalModalOpen && activeActionBooking && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 rounded-2xl border border-red-500/30 max-w-md w-full">
             <div className="p-6">
               <h3 className="text-xl font-bold text-white mb-4">
                 Reject Price Estimate
               </h3>
-              <p className="text-gray-300 mb-6">
-                Please provide a reason for rejecting this price estimate. The
-                technician will review your feedback and provide a revised
-                estimate.
-              </p>
+
+              <div className="mb-4 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                <p className="text-white font-medium">
+                  {activeActionBooking.vehicle.model}
+                </p>
+                <p className="text-gray-400 text-sm">
+                  {activeActionBooking.vehicle.registrationNumber}
+                </p>
+                <p className="text-amber-400 font-bold text-lg mt-2">
+                  {formatPriceDisplay(activeActionBooking)}
+                </p>
+              </div>
 
               <div className="mb-6">
                 <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Reason for Rejection
+                  Reason for Rejection *
                 </label>
                 <textarea
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   rows={4}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-red-500"
-                  placeholder="E.g., Price is too high, need cheaper alternatives, want to remove some services..."
+                  placeholder="Please explain why you're rejecting this price estimate..."
                   required
                 />
+                <p className="text-gray-400 text-xs mt-2">
+                  Your feedback will help the technician provide a better
+                  estimate.
+                </p>
               </div>
 
               <div className="flex gap-3">
@@ -1753,6 +1800,7 @@ const BookingManagement: React.FC = () => {
                   onClick={() => {
                     setIsPriceApprovalModalOpen(false);
                     setRejectionReason("");
+                    setActiveActionBooking(null);
                   }}
                   className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-all border border-gray-700"
                 >
@@ -1765,7 +1813,7 @@ const BookingManagement: React.FC = () => {
                       return;
                     }
                     handlePriceApproval(
-                      selectedBooking.id,
+                      activeActionBooking.id,
                       false,
                       rejectionReason
                     );
@@ -1779,7 +1827,7 @@ const BookingManagement: React.FC = () => {
                       Processing...
                     </div>
                   ) : (
-                    "Confirm Rejection"
+                    "Submit Rejection"
                   )}
                 </button>
               </div>

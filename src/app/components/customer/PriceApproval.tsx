@@ -1,30 +1,33 @@
-// components/PriceApproval.tsx
 "use client";
 import { useState, useEffect } from "react";
 
 interface PriceApprovalBooking {
   id: number;
-  estimatedCost: number | null;
-  status: string;
+  vehicleId: number;
   bookingDate: string;
+  status: string;
+  reportedIssue: string | null;
+  estimatedCost: number | null;
+  estimatedMinCost: number | null;
+  estimatedMaxCost: number | null;
+  duration: number | null;
+  priceApproved: boolean | null;
+  priceRejected: boolean | null;
+  rejectionReason: string | null;
   vehicle: {
     model: string;
     registrationNumber: string;
     year: number | null;
   };
   service?: {
-    repairNotes: string | null;
-    spareParts: string | null;
     serviceStatus: string;
+    repairNotes: string | null;
     worker?: {
       name: string;
-      rating: number | null;
-      totalServices: number;
+      specialization: string | null;
+      phone?: string | null;
     };
   };
-  priceApproved?: boolean | null;
-  priceRejected?: boolean | null;
-  rejectionReason?: string | null;
 }
 
 interface PriceApprovalProps {
@@ -32,45 +35,46 @@ interface PriceApprovalProps {
 }
 
 const PriceApproval: React.FC<PriceApprovalProps> = ({ customerId }) => {
-  const [pendingApprovals, setPendingApprovals] = useState<PriceApprovalBooking[]>([]);
-  const [approvedBookings, setApprovedBookings] = useState<PriceApprovalBooking[]>([]);
-  const [rejectedBookings, setRejectedBookings] = useState<PriceApprovalBooking[]>([]);
+  const [bookings, setBookings] = useState<PriceApprovalBooking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"pending" | "approved" | "rejected">("pending");
-  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<PriceApprovalBooking | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
 
   useEffect(() => {
-    fetchPriceApprovals();
+    fetchPriceApprovalBookings();
   }, [customerId]);
 
-  const fetchPriceApprovals = async () => {
+  const fetchPriceApprovalBookings = async () => {
     try {
       setIsLoading(true);
       setError("");
-      const response = await fetch(`/api/customer/${customerId}/price-approvals`);
+      
+      // Fetch bookings that need price approval
+      const response = await fetch(`/api/customer/bookings?needsApproval=true`);
       
       if (!response.ok) {
-        throw new Error("Failed to fetch price approvals");
+        throw new Error("Failed to fetch price approval bookings");
       }
       
       const data = await response.json();
-      setPendingApprovals(data.pendingApprovals || []);
-      setApprovedBookings(data.approvedBookings || []);
-      setRejectedBookings(data.rejectedBookings || []);
+      setBookings(data.bookings || []);
       
     } catch (error) {
-      console.error("Error fetching price approvals:", error);
-      setError("Failed to load price approvals");
+      console.error("Error fetching price approval bookings:", error);
+      setError("Failed to load price approval requests");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePriceApproval = async (bookingId: number, approved: boolean, reason?: string) => {
+  const handleApprovePrice = async (bookingId: number) => {
+    if (!confirm("Are you sure you want to approve this price estimate? Once approved, the technician can start work on your vehicle.")) {
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       const response = await fetch(`/api/customer/bookings/${bookingId}/price-approval`, {
@@ -79,371 +83,282 @@ const PriceApproval: React.FC<PriceApprovalProps> = ({ customerId }) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          approved,
-          reason: reason || null
+          approved: true,
+          reason: null,
         }),
       });
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || "Failed to update price approval");
+        throw new Error(data.error || "Failed to approve price");
       }
 
       // Update local state
-      const bookingToUpdate = pendingApprovals.find(b => b.id === bookingId);
-      if (bookingToUpdate) {
-        if (approved) {
-          setPendingApprovals(prev => prev.filter(b => b.id !== bookingId));
-          setApprovedBookings(prev => [...prev, { ...bookingToUpdate, priceApproved: true }]);
-        } else {
-          setPendingApprovals(prev => prev.filter(b => b.id !== bookingId));
-          setRejectedBookings(prev => [...prev, { 
-            ...bookingToUpdate, 
-            priceRejected: true,
-            rejectionReason: reason 
-          }]);
-        }
-      }
-
-      setIsRejectModalOpen(false);
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
       setSelectedBooking(null);
-      setRejectionReason("");
       
-      alert(approved ? "Price approved successfully!" : "Price rejected. The technician will contact you with a revised estimate.");
+      alert("✅ Price approved successfully! The technician will now start work on your vehicle.");
       
     } catch (error) {
-      console.error("Error updating price approval:", error);
-      alert(error instanceof Error ? error.message : "Failed to update price approval");
+      console.error("Error approving price:", error);
+      alert(error instanceof Error ? error.message : "Failed to approve price");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const openRejectModal = (booking: PriceApprovalBooking) => {
-    setSelectedBooking(booking);
-    setRejectionReason("");
-    setIsRejectModalOpen(true);
+  const handleRejectPrice = async (bookingId: number, reason: string) => {
+    if (!reason.trim()) {
+      alert("Please provide a reason for rejecting the price");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      const response = await fetch(`/api/customer/bookings/${bookingId}/price-approval`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          approved: false,
+          reason: reason.trim(),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to reject price");
+      }
+
+      // Update local state
+      setBookings(prev => prev.filter(booking => booking.id !== bookingId));
+      setSelectedBooking(null);
+      setIsRejectModalOpen(false);
+      setRejectionReason("");
+      
+      alert("❌ Price rejected. The technician will contact you with a revised estimate.");
+      
+    } catch (error) {
+      console.error("Error rejecting price:", error);
+      alert(error instanceof Error ? error.message : "Failed to reject price");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("en-US", {
-      weekday: "short",
+    return new Date(dateString).toLocaleDateString("en-MY", {
+      weekday: "long",
       year: "numeric",
-      month: "short",
+      month: "long",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
   };
 
-  const PriceApprovalBadge = ({ booking }: { booking: PriceApprovalBooking }) => {
-    if (booking.priceApproved) {
-      return (
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
-          ✅ Approved
-        </span>
-      );
+  const formatPriceDisplay = (booking: PriceApprovalBooking) => {
+    if (booking.estimatedMinCost && booking.estimatedMaxCost) {
+      return `RM ${booking.estimatedMinCost.toFixed(2)} - RM ${booking.estimatedMaxCost.toFixed(2)}`;
+    } else if (booking.estimatedCost) {
+      return `RM ${booking.estimatedCost.toFixed(2)}`;
     }
-    if (booking.priceRejected) {
-      return (
-        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">
-          ❌ Rejected
-        </span>
-      );
-    }
+    return "Price not set";
+  };
+
+  const needsPriceApproval = (booking: PriceApprovalBooking): boolean => {
     return (
-      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-500/20 text-blue-400 border border-blue-500/30">
-        ⏳ Awaiting Approval
-      </span>
+      booking.status === "Confirmed" &&
+      (booking.estimatedCost !== null || booking.estimatedMinCost !== null) &&
+      booking.priceApproved === false &&
+      booking.priceRejected === false
     );
   };
 
+  // Filter only bookings that actually need approval
+  const bookingsNeedingApproval = bookings.filter(needsPriceApproval);
+
   if (isLoading) {
     return (
-      <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-6">
-        <div className="flex justify-center items-center py-8">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-            <p className="text-gray-400 mt-4">Loading price approvals...</p>
-          </div>
-        </div>
+      <div className="text-center py-8">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+        <p className="text-gray-400 mt-4">Loading price approvals...</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-gray-800/50 rounded-2xl border border-gray-700 p-6">
-        <div className="text-center py-4">
-          <div className="text-red-400 text-lg mb-4">⚠️ {error}</div>
+      <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-red-400 font-medium">Error loading price approvals</p>
+            <p className="text-gray-400 text-sm mt-1">{error}</p>
+          </div>
           <button
-            onClick={fetchPriceApprovals}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
+            onClick={fetchPriceApprovalBookings}
+            className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm"
           >
-            Try Again
+            Retry
           </button>
         </div>
       </div>
     );
   }
 
+  if (bookingsNeedingApproval.length === 0) {
+    return (
+      <div className="text-center py-12 bg-gray-800/30 rounded-2xl border border-gray-700">
+        <div className="text-gray-400 text-6xl mb-4">✅</div>
+        <h3 className="text-white font-semibold text-lg mb-2">No Price Approvals Needed</h3>
+        <p className="text-gray-400">All price estimates have been reviewed.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-gray-800/50 rounded-2xl border border-gray-700 overflow-hidden">
-      {/* Header */}
-      <div className="p-6 border-b border-gray-700">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-4">
+      <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4 mb-6">
+        <div className="flex items-center">
+          <span className="text-purple-400 text-2xl mr-3">⚠️</span>
           <div>
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <span>💰</span>
-              Price Approvals
-            </h3>
-            <p className="text-gray-400 text-sm">
-              Review and approve price estimates for your services
+            <h4 className="text-white font-semibold">Action Required</h4>
+            <p className="text-gray-300 text-sm">
+              You have {bookingsNeedingApproval.length} price estimate{bookingsNeedingApproval.length !== 1 ? "s" : ""} to review before work can begin on your vehicle{bookingsNeedingApproval.length !== 1 ? "s" : ""}.
             </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab("pending")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "pending"
-                  ? "bg-blue-500 text-white"
-                  : "bg-gray-700 text-gray-400 hover:text-white"
-              }`}
-            >
-              Pending ({pendingApprovals.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("approved")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "approved"
-                  ? "bg-green-500 text-white"
-                  : "bg-gray-700 text-gray-400 hover:text-white"
-              }`}
-            >
-              Approved ({approvedBookings.length})
-            </button>
-            <button
-              onClick={() => setActiveTab("rejected")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === "rejected"
-                  ? "bg-red-500 text-white"
-                  : "bg-gray-700 text-gray-400 hover:text-white"
-              }`}
-            >
-              Rejected ({rejectedBookings.length})
-            </button>
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
-        {activeTab === "pending" && (
-          <div className="space-y-4">
-            {pendingApprovals.length === 0 ? (
-              <div className="text-center py-12 bg-gray-800/30 rounded-xl border border-gray-700">
-                <div className="text-gray-400 text-6xl mb-4">✅</div>
-                <h4 className="text-white font-semibold text-lg mb-2">
-                  No Pending Price Approvals
-                </h4>
-                <p className="text-gray-400">
-                  All price estimates have been processed.
-                </p>
+      {bookingsNeedingApproval.map((booking) => (
+        <div key={booking.id} className="bg-gray-800/50 backdrop-blur-sm rounded-2xl border border-purple-500/30 p-6 hover:border-purple-500/50 transition-all">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="text-white font-semibold text-xl mb-1">{booking.vehicle.model}</h3>
+                  <p className="text-gray-400 text-sm">
+                    {booking.vehicle.registrationNumber} • {booking.vehicle.year}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <div className="text-purple-400 font-bold text-2xl mb-1">
+                    {formatPriceDisplay(booking)}
+                  </div>
+                  <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded-full animate-pulse">
+                    ⏳ Awaiting Your Approval
+                  </span>
+                </div>
               </div>
-            ) : (
-              pendingApprovals.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-6"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-white font-semibold text-lg mb-1">
-                            {booking.vehicle.model}
-                          </h4>
-                          <p className="text-gray-300 text-sm">
-                            {booking.vehicle.registrationNumber}
-                          </p>
-                        </div>
-                        <PriceApprovalBadge booking={booking} />
-                      </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-gray-400 text-sm">Scheduled Date</p>
-                          <p className="text-white font-medium">
-                            {formatDate(booking.bookingDate)}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400 text-sm">Estimated Cost</p>
-                          <p className="text-amber-400 text-2xl font-bold">
-                            RM {booking.estimatedCost?.toFixed(2) || "0.00"}
-                          </p>
-                        </div>
-                      </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-gray-400 text-sm">Scheduled Service</p>
+                  <p className="text-white font-medium">{formatDate(booking.bookingDate)}</p>
+                  <p className="text-gray-400 text-sm">Duration: {booking.duration || 1} hours</p>
+                </div>
+                <div>
+                  <p className="text-gray-400 text-sm">Assigned Technician</p>
+                  <p className="text-white font-medium">
+                    {booking.service?.worker?.name || "Not assigned yet"}
+                  </p>
+                  {booking.service?.worker?.specialization && (
+                    <p className="text-gray-400 text-sm">{booking.service.worker.specialization}</p>
+                  )}
+                </div>
+              </div>
 
-                      {booking.service?.repairNotes && (
-                        <div className="mb-4">
-                          <p className="text-gray-400 text-sm mb-2">Technician Notes</p>
-                          <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
-                            {booking.service.repairNotes}
-                          </p>
-                        </div>
-                      )}
+              {booking.reportedIssue && (
+                <div className="mb-4">
+                  <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
+                  <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
+                    {booking.reportedIssue}
+                  </p>
+                </div>
+              )}
 
-                      {booking.service?.worker && (
-                        <div className="mb-4 p-3 bg-gray-700/30 rounded-lg">
-                          <p className="text-gray-400 text-sm mb-1">Assigned Technician</p>
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-white font-medium">
-                                {booking.service.worker.name}
-                              </p>
-                              <p className="text-gray-400 text-sm">
-                                {booking.service.worker.totalServices} services completed
-                                {booking.service.worker.rating && (
-                                  <span className="ml-2">
-                                    ⭐ {booking.service.worker.rating.toFixed(1)}
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
+              {booking.service?.repairNotes && (
+                <div className="mb-4">
+                  <p className="text-gray-400 text-sm mb-2">Technician's Assessment</p>
+                  <p className="text-white bg-blue-500/10 rounded-lg p-3 border border-blue-500/30">
+                    {booking.service.repairNotes}
+                  </p>
+                </div>
+              )}
 
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => handlePriceApproval(booking.id, true)}
-                          disabled={isSubmitting}
-                          className="bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
-                        >
-                          {isSubmitting ? (
-                            <div className="flex items-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                              Processing...
-                            </div>
-                          ) : (
-                            "✅ Approve Price"
-                          )}
-                        </button>
-                        <button
-                          onClick={() => openRejectModal(booking)}
-                          disabled={isSubmitting}
-                          className="bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-6 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
-                        >
-                          ❌ Reject Price
-                        </button>
-                      </div>
+              {/* Price Breakdown */}
+              {booking.estimatedMinCost && booking.estimatedMaxCost && (
+                <div className="bg-amber-500/10 rounded-lg p-4 border border-amber-500/20 mb-4">
+                  <h4 className="text-amber-400 font-semibold mb-2">Price Breakdown</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-400 text-sm">Minimum Estimate</p>
+                      <p className="text-white font-bold">RM {booking.estimatedMinCost.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Maximum Estimate</p>
+                      <p className="text-white font-bold">RM {booking.estimatedMaxCost.toFixed(2)}</p>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {activeTab === "approved" && (
-          <div className="space-y-4">
-            {approvedBookings.length === 0 ? (
-              <div className="text-center py-12 bg-gray-800/30 rounded-xl border border-gray-700">
-                <div className="text-gray-400 text-6xl mb-4">📋</div>
-                <h4 className="text-white font-semibold text-lg mb-2">
-                  No Approved Prices
-                </h4>
-                <p className="text-gray-400">
-                  You haven't approved any price estimates yet.
-                </p>
-              </div>
-            ) : (
-              approvedBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="bg-green-500/10 border border-green-500/30 rounded-xl p-6"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-white font-semibold text-lg mb-1">
-                            {booking.vehicle.model}
-                          </h4>
-                          <p className="text-gray-300 text-sm">
-                            {booking.vehicle.registrationNumber}
-                          </p>
-                        </div>
-                        <PriceApprovalBadge booking={booking} />
-                      </div>
-                      <div className="text-green-400 mb-4">
-                        ✅ You approved this price on {formatDate(booking.bookingDate)}
-                      </div>
-                      <p className="text-amber-400 text-2xl font-bold">
-                        RM {booking.estimatedCost?.toFixed(2) || "0.00"}
-                      </p>
-                    </div>
+                  <div className="mt-3 pt-3 border-t border-amber-500/20">
+                    <p className="text-gray-400 text-sm">Average Expected Cost</p>
+                    <p className="text-amber-400 font-bold text-xl">
+                      RM {((booking.estimatedMinCost! + booking.estimatedMaxCost!) / 2).toFixed(2)}
+                    </p>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              )}
+            </div>
 
-        {activeTab === "rejected" && (
-          <div className="space-y-4">
-            {rejectedBookings.length === 0 ? (
-              <div className="text-center py-12 bg-gray-800/30 rounded-xl border border-gray-700">
-                <div className="text-gray-400 text-6xl mb-4">📋</div>
-                <h4 className="text-white font-semibold text-lg mb-2">
-                  No Rejected Prices
-                </h4>
-                <p className="text-gray-400">
-                  You haven't rejected any price estimates.
-                </p>
-              </div>
-            ) : (
-              rejectedBookings.map((booking) => (
-                <div
-                  key={booking.id}
-                  className="bg-red-500/10 border border-red-500/30 rounded-xl p-6"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="text-white font-semibold text-lg mb-1">
-                            {booking.vehicle.model}
-                          </h4>
-                          <p className="text-gray-300 text-sm">
-                            {booking.vehicle.registrationNumber}
-                          </p>
-                        </div>
-                        <PriceApprovalBadge booking={booking} />
-                      </div>
-                      <div className="text-red-400 mb-4">
-                        ❌ You rejected this price on {formatDate(booking.bookingDate)}
-                      </div>
-                      {booking.rejectionReason && (
-                        <div className="mb-4">
-                          <p className="text-gray-400 text-sm mb-2">Your Feedback:</p>
-                          <p className="text-white bg-red-500/20 rounded-lg p-3 border border-red-500/30">
-                            {booking.rejectionReason}
-                          </p>
-                        </div>
-                      )}
-                      <p className="text-amber-400 text-2xl font-bold">
-                        RM {booking.estimatedCost?.toFixed(2) || "0.00"}
-                      </p>
-                    </div>
+            <div className="flex lg:flex-col gap-3 min-w-[200px]">
+              <button
+                onClick={() => handleApprovePrice(booking.id)}
+                disabled={isSubmitting}
+                className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white px-4 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Processing...
                   </div>
-                </div>
-              ))
-            )}
+                ) : (
+                  <>
+                    <span className="mr-2">✅</span>
+                    Approve Price
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedBooking(booking);
+                  setIsRejectModalOpen(true);
+                }}
+                disabled={isSubmitting}
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white px-4 py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
+              >
+                <>
+                  <span className="mr-2">❌</span>
+                  Reject Price
+                </>
+              </button>
+              {booking.service?.worker?.phone && (
+                <a
+                  href={`https://wa.me/${booking.service.worker.phone.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-xl font-semibold transition-all text-center"
+                >
+                  <>
+                    <span className="mr-2">💬</span>
+                    Contact Technician
+                  </>
+                </a>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      ))}
 
       {/* Rejection Modal */}
       {isRejectModalOpen && selectedBooking && (
@@ -451,36 +366,45 @@ const PriceApproval: React.FC<PriceApprovalProps> = ({ customerId }) => {
           <div className="bg-gray-900 rounded-2xl border border-red-500/30 max-w-md w-full">
             <div className="p-6">
               <h3 className="text-xl font-bold text-white mb-4">Reject Price Estimate</h3>
-              <p className="text-gray-300 mb-6">
-                Please provide a reason for rejecting this price estimate. The technician will review your feedback and provide a revised estimate.
-              </p>
               
+              <div className="mb-4 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                <p className="text-white font-medium">{selectedBooking.vehicle.model}</p>
+                <p className="text-gray-400 text-sm">{selectedBooking.vehicle.registrationNumber}</p>
+                <p className="text-amber-400 font-bold text-lg mt-2">
+                  {formatPriceDisplay(selectedBooking)}
+                </p>
+              </div>
+
               <div className="mb-6">
                 <label className="block text-gray-300 text-sm font-medium mb-2">
-                  Reason for Rejection
+                  Reason for Rejection *
                 </label>
                 <textarea
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
                   rows={4}
                   className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-red-500"
-                  placeholder="E.g., Price is too high, need cheaper alternatives, want to remove some services..."
+                  placeholder="Please explain why you're rejecting this price estimate (e.g., too expensive, need cheaper parts, want additional quotes...)"
+                  required
                 />
+                <p className="text-gray-400 text-xs mt-2">
+                  Your feedback will help the technician provide a better estimate.
+                </p>
               </div>
 
               <div className="flex gap-3">
                 <button
                   onClick={() => {
                     setIsRejectModalOpen(false);
-                    setSelectedBooking(null);
                     setRejectionReason("");
+                    setSelectedBooking(null);
                   }}
                   className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-all border border-gray-700"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={() => handlePriceApproval(selectedBooking.id, false, rejectionReason)}
+                  onClick={() => handleRejectPrice(selectedBooking.id, rejectionReason)}
                   disabled={isSubmitting || !rejectionReason.trim()}
                   className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
                 >
@@ -490,7 +414,7 @@ const PriceApproval: React.FC<PriceApprovalProps> = ({ customerId }) => {
                       Processing...
                     </div>
                   ) : (
-                    "Confirm Rejection"
+                    "Submit Rejection"
                   )}
                 </button>
               </div>

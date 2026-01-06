@@ -1,4 +1,3 @@
-// app/api/admin/workers/[id]/services/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,37 +6,39 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
-    const workerId = parseInt(id);
-    const searchParams = request.nextUrl.searchParams;
-    const status = searchParams.get('status');
-    const limit = searchParams.get('limit') ? parseInt(searchParams.get('limit')!) : 20;
-    const page = searchParams.get('page') ? parseInt(searchParams.get('page')!) : 1;
+    const resolvedParams = await params;
+    const workerId = parseInt(resolvedParams.id);
 
-    if (!workerId) {
+    if (isNaN(workerId)) {
       return NextResponse.json(
-        { error: "Worker ID is required" },
+        { error: "Invalid worker ID" },
         { status: 400 }
       );
     }
 
+    const searchParams = request.nextUrl.searchParams;
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const page = parseInt(searchParams.get("page") || "1");
+    const status = searchParams.get("status");
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
+
     // Build where clause
-    const whereClause: any = {
-      workerId: workerId
-    };
-
-    if (status && status !== 'all') {
-      whereClause.serviceStatus = status;
+    const where: any = { workerId };
+    
+    if (status) {
+      where.serviceStatus = status;
     }
-
-    // Get total count for pagination
-    const totalServices = await prisma.service.count({
-      where: whereClause
-    });
+    
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt.gte = new Date(startDate);
+      if (endDate) where.createdAt.lte = new Date(endDate);
+    }
 
     // Get services with pagination
     const services = await prisma.service.findMany({
-      where: whereClause,
+      where,
       include: {
         booking: {
           include: {
@@ -45,68 +46,59 @@ export async function GET(
               select: {
                 name: true,
                 phone: true,
-                email: true
               }
             },
             vehicle: {
               select: {
                 model: true,
                 registrationNumber: true,
-                year: true
               }
             }
           }
         }
       },
       orderBy: {
-        createdAt: 'desc'
+        createdAt: "desc"
       },
+      take: limit,
       skip: (page - 1) * limit,
-      take: limit
     });
 
-    // Format response
-    const formattedServices = services.map(service => ({
+    // Get total count
+    const total = await prisma.service.count({ where });
+
+    // Transform services data
+    const transformedServices = services.map(service => ({
       id: service.id,
+      workerId: service.workerId,
       bookingId: service.bookingId,
       serviceStatus: service.serviceStatus,
       repairNotes: service.repairNotes,
       serviceCost: service.serviceCost,
-      spareParts: service.spareParts,
-      completionDate: service.completionDate?.toISOString(),
       duration: service.duration,
+      completionDate: service.completionDate?.toISOString() || null,
+      customerName: service.booking?.customer?.name || "Unknown",
+      customerPhone: service.booking?.customer?.phone || null,
+      vehicleModel: service.booking?.vehicle?.model || "Unknown",
+      registrationNumber: service.booking?.vehicle?.registrationNumber || null,
       createdAt: service.createdAt.toISOString(),
-      customer: service.booking.customer,
-      vehicle: service.booking.vehicle,
-      bookingDate: service.booking.bookingDate.toISOString()
     }));
 
     return NextResponse.json({
-      services: formattedServices,
-      pagination: {
-        total: totalServices,
-        page,
-        limit,
-        totalPages: Math.ceil(totalServices / limit)
-      },
-      statistics: {
-        total: totalServices,
-        completed: await prisma.service.count({
-          where: { ...whereClause, serviceStatus: "Completed" }
-        }),
-        inProgress: await prisma.service.count({
-          where: { ...whereClause, serviceStatus: "In Progress" }
-        }),
-        pending: await prisma.service.count({
-          where: { ...whereClause, serviceStatus: "Pending" }
-        })
-      }
+      services: transformedServices,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     });
 
   } catch (error) {
     console.error("Error fetching worker services:", error);
     return NextResponse.json(
-      { error: "Failed to fetch worker services" },
+      { 
+        error: "Failed to fetch worker services",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

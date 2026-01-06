@@ -1,17 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Get total items count
+    console.log("GET /api/admin/inventory/stats called");
+
+    // Get total items
     const totalItems = await prisma.stock.count();
 
-    // Get low stock items (quantity <= minStockLevel but > 0)
+    // Get low stock items (quantity > 0 and <= minStockLevel)
     const lowStockItems = await prisma.stock.count({
       where: {
         quantity: {
-          lte: prisma.stock.fields.minStockLevel,
-          gt: 0
+          gt: 0,
+          lte: prisma.stock.fields.minStockLevel
         }
       }
     });
@@ -21,14 +23,7 @@ export async function GET(request: NextRequest) {
       where: { quantity: 0 }
     });
 
-    // Get total inventory value
-    const inventoryValue = await prisma.stock.aggregate({
-      _sum: {
-        quantity: true,
-      }
-    });
-
-    // Calculate total value manually since Prisma doesn't support computed fields
+    // Calculate total inventory value
     const allItems = await prisma.stock.findMany({
       select: {
         quantity: true,
@@ -36,34 +31,57 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    const totalInventoryValue = allItems.reduce((sum, item) => {
-      return sum + (item.quantity * (item.unitPrice || 0));
+    const totalInventoryValue = allItems.reduce((total, item) => {
+      return total + (item.quantity * (item.unitPrice || 0));
     }, 0);
 
-    // Get categories
-    const categories = await prisma.stock.groupBy({
+    // Get categories with counts
+    const categoriesRaw = await prisma.stock.groupBy({
       by: ['category'],
+      where: {
+        category: { not: null }
+      },
       _count: {
-        id: true
+        _all: true
       }
     });
+
+    const categories = categoriesRaw.map(cat => ({
+      name: cat.category || "Uncategorized",
+      count: cat._count._all
+    }));
+
+    // Add uncategorized count
+    const uncategorizedCount = await prisma.stock.count({
+      where: { category: null }
+    });
+    
+    if (uncategorizedCount > 0) {
+      categories.push({
+        name: "Uncategorized",
+        count: uncategorizedCount
+      });
+    }
 
     const stats = {
       totalItems,
       lowStockItems,
       outOfStockItems,
       totalInventoryValue,
-      categories: categories.map(cat => ({
-        name: cat.category || 'Uncategorized',
-        count: cat._count.id
-      }))
+      categories
     };
 
+    console.log("Inventory stats:", stats);
+    
     return NextResponse.json(stats);
+
   } catch (error) {
-    console.error('Error fetching inventory stats:', error);
+    console.error("Error fetching inventory stats:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch inventory statistics' },
+      { 
+        error: "Failed to fetch inventory statistics",
+        details: error instanceof Error ? error.message : "Unknown error"
+      },
       { status: 500 }
     );
   }

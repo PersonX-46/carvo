@@ -1,6 +1,6 @@
-'use client';
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+"use client";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 
 interface Customer {
   id: number;
@@ -50,7 +50,9 @@ interface CustomerStats {
 
 const CustomerManagement: React.FC = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null
+  );
   const [customerVehicles, setCustomerVehicles] = useState<Vehicle[]>([]);
   const [customerBookings, setCustomerBookings] = useState<Booking[]>([]);
   const [customerStats, setCustomerStats] = useState<CustomerStats>({
@@ -58,13 +60,15 @@ const CustomerManagement: React.FC = () => {
     totalVehicles: 0,
     totalBookings: 0,
     recentCustomers: 0,
-    activeCustomers: 0
+    activeCustomers: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState<'list' | 'details'>('list');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'recent' | 'active'>('all');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [viewMode, setViewMode] = useState<"list" | "details">("list");
+  const [activeFilter, setActiveFilter] = useState<"all" | "recent" | "active">(
+    "all"
+  );
   const [error, setError] = useState<string | null>(null);
 
   // Fetch customers list
@@ -74,20 +78,20 @@ const CustomerManagement: React.FC = () => {
       setError(null);
 
       const queryParams = new URLSearchParams();
-      if (searchTerm) queryParams.append('search', searchTerm);
-      if (activeFilter !== 'all') queryParams.append('filter', activeFilter);
+      if (searchTerm) queryParams.append("search", searchTerm);
+      if (activeFilter !== "all") queryParams.append("filter", activeFilter);
 
       const response = await fetch(`/api/admin/customers?${queryParams}`);
-      
+
       if (!response.ok) {
-        throw new Error('Failed to fetch customers');
+        throw new Error("Failed to fetch customers");
       }
 
       const data = await response.json();
       setCustomers(data);
     } catch (err) {
-      console.error('Error fetching customers:', err);
-      setError('Failed to load customers. Please try again.');
+      console.error("Error fetching customers:", err);
+      setError("Failed to load customers. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -96,13 +100,13 @@ const CustomerManagement: React.FC = () => {
   // Fetch customer stats
   const fetchCustomerStats = async () => {
     try {
-      const response = await fetch('/api/admin/customers/stats');
+      const response = await fetch("/api/admin/customers/stats");
       if (response.ok) {
         const stats = await response.json();
         setCustomerStats(stats);
       }
     } catch (err) {
-      console.error('Error fetching customer stats:', err);
+      console.error("Error fetching customer stats:", err);
     }
   };
 
@@ -112,19 +116,41 @@ const CustomerManagement: React.FC = () => {
       setIsLoadingDetails(true);
       setError(null);
 
+      console.log(`Fetching details for customer ID: ${customerId}`); // Debug log
+
       const response = await fetch(`/api/admin/customers/${customerId}`);
-      
+
+      console.log("Response status:", response.status); // Debug log
+
       if (!response.ok) {
-        throw new Error('Failed to fetch customer details');
+        const errorText = await response.text();
+        console.error("Error response:", errorText); // Debug log
+        throw new Error(`Failed to fetch customer details: ${response.status}`);
       }
 
       const customerData = await response.json();
-      
+
+      console.log("Customer data received:", customerData); // Debug log
+
+      if (!customerData.vehicles) {
+        console.warn("Vehicles data missing from response");
+        customerData.vehicles = [];
+      }
+
+      if (!customerData.bookings) {
+        console.warn("Bookings data missing from response");
+        customerData.bookings = [];
+      }
+
       setCustomerVehicles(customerData.vehicles || []);
       setCustomerBookings(customerData.bookings || []);
     } catch (err) {
-      console.error('Error fetching customer details:', err);
-      setError('Failed to load customer details. Please try again.');
+      console.error("Error fetching customer details:", err);
+      setError(
+        `Failed to load customer details: ${
+          err instanceof Error ? err.message : "Unknown error"
+        }`
+      );
     } finally {
       setIsLoadingDetails(false);
     }
@@ -147,12 +173,12 @@ const CustomerManagement: React.FC = () => {
 
   const handleViewCustomer = async (customer: Customer) => {
     setSelectedCustomer(customer);
-    setViewMode('details');
+    setViewMode("details");
     await fetchCustomerDetails(customer.id);
   };
 
   const handleBackToList = () => {
-    setViewMode('list');
+    setViewMode("list");
     setSelectedCustomer(null);
     setCustomerVehicles([]);
     setCustomerBookings([]);
@@ -160,7 +186,7 @@ const CustomerManagement: React.FC = () => {
   };
 
   const refreshData = () => {
-    if (viewMode === 'list') {
+    if (viewMode === "list") {
       fetchCustomers();
       fetchCustomerStats();
     } else if (selectedCustomer) {
@@ -169,10 +195,25 @@ const CustomerManagement: React.FC = () => {
   };
 
   const getStatusBadge = (customer: Customer) => {
-    if (customer.totalBookings === 0) return { text: 'New', color: 'bg-blue-500/20 text-blue-400 border border-blue-500/30' };
-    if (customer.totalBookings >= 5) return { text: 'Regular', color: 'bg-green-500/20 text-green-400 border border-green-500/30' };
-    if (customer.totalBookings >= 3) return { text: 'Active', color: 'bg-amber-500/20 text-amber-400 border border-amber-500/30' };
-    return { text: 'Occasional', color: 'bg-gray-500/20 text-gray-400 border border-gray-500/30' };
+    if (customer.totalBookings === 0)
+      return {
+        text: "New",
+        color: "bg-blue-500/20 text-blue-400 border border-blue-500/30",
+      };
+    if (customer.totalBookings >= 5)
+      return {
+        text: "Regular",
+        color: "bg-green-500/20 text-green-400 border border-green-500/30",
+      };
+    if (customer.totalBookings >= 3)
+      return {
+        text: "Active",
+        color: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+      };
+    return {
+      text: "Occasional",
+      color: "bg-gray-500/20 text-gray-400 border border-gray-500/30",
+    };
   };
 
   // Loading skeleton for customer list
@@ -208,7 +249,7 @@ const CustomerManagement: React.FC = () => {
     </div>
   );
 
-  if (viewMode === 'details' && selectedCustomer) {
+  if (viewMode === "details" && selectedCustomer) {
     return (
       <div className="space-y-6">
         {/* Header */}
@@ -221,12 +262,14 @@ const CustomerManagement: React.FC = () => {
               <span className="text-lg">←</span>
             </button>
             <div>
-              <h2 className="text-2xl font-bold text-white">{selectedCustomer.name}</h2>
+              <h2 className="text-2xl font-bold text-white">
+                {selectedCustomer.name}
+              </h2>
               <p className="text-gray-400">Customer Details</p>
             </div>
           </div>
           <div className="flex space-x-3">
-            <button 
+            <button
               onClick={refreshData}
               disabled={isLoadingDetails}
               className="p-2 text-gray-400 hover:text-amber-400 transition-colors rounded-lg hover:bg-gray-800/50 disabled:opacity-50"
@@ -248,7 +291,7 @@ const CustomerManagement: React.FC = () => {
           <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
             <div className="flex items-center justify-between">
               <span>{error}</span>
-              <button 
+              <button
                 onClick={refreshData}
                 className="text-red-400 hover:text-red-300"
               >
@@ -262,19 +305,24 @@ const CustomerManagement: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
             <p className="text-gray-400 text-sm">Total Vehicles</p>
-            <p className="text-2xl font-bold text-white">{selectedCustomer.totalVehicles}</p>
+            <p className="text-2xl font-bold text-white">
+              {selectedCustomer.totalVehicles}
+            </p>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
             <p className="text-gray-400 text-sm">Total Bookings</p>
-            <p className="text-2xl font-bold text-white">{selectedCustomer.totalBookings}</p>
+            <p className="text-2xl font-bold text-white">
+              {selectedCustomer.totalBookings}
+            </p>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
             <p className="text-gray-400 text-sm">Last Service</p>
             <p className="text-lg font-bold text-white">
-              {selectedCustomer.lastServiceDate 
-                ? new Date(selectedCustomer.lastServiceDate).toLocaleDateString() 
-                : 'Never'
-              }
+              {selectedCustomer.lastServiceDate
+                ? new Date(
+                    selectedCustomer.lastServiceDate
+                  ).toLocaleDateString()
+                : "Never"}
             </p>
           </div>
           <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
@@ -304,7 +352,7 @@ const CustomerManagement: React.FC = () => {
               <div>
                 <p className="text-gray-400 text-sm">Address</p>
                 <p className="text-white">
-                  {selectedCustomer.address || 'No address provided'}
+                  {selectedCustomer.address || "No address provided"}
                 </p>
               </div>
             </div>
@@ -324,35 +372,53 @@ const CustomerManagement: React.FC = () => {
             <div className="space-y-3">
               {isLoadingDetails ? (
                 <div className="animate-pulse space-y-3">
-                  {[1, 2].map(i => (
-                    <div key={i} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="bg-gray-800/50 rounded-lg p-3 border border-gray-700"
+                    >
                       <div className="h-4 bg-gray-700 rounded w-32 mb-2"></div>
                       <div className="h-3 bg-gray-700 rounded w-24"></div>
                     </div>
                   ))}
                 </div>
               ) : customerVehicles.length > 0 ? (
-                customerVehicles.map(vehicle => (
-                  <div key={vehicle.id} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                customerVehicles.map((vehicle) => (
+                  <div
+                    key={vehicle.id}
+                    className="bg-gray-800/50 rounded-lg p-3 border border-gray-700"
+                  >
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="text-white font-medium">{vehicle.model}</p>
-                        <p className="text-gray-400 text-sm">{vehicle.registrationNumber}</p>
+                        <p className="text-white font-medium">
+                          {vehicle.model}
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          {vehicle.registrationNumber}
+                        </p>
                         {vehicle.year && (
-                          <p className="text-gray-400 text-xs">Year: {vehicle.year}</p>
+                          <p className="text-gray-400 text-xs">
+                            Year: {vehicle.year}
+                          </p>
                         )}
                       </div>
                       <div className="text-right">
-                        <p className="text-amber-400 text-sm">{vehicle.type || 'Not specified'}</p>
+                        <p className="text-amber-400 text-sm">
+                          {vehicle.type || "Not specified"}
+                        </p>
                         {vehicle.color && (
-                          <p className="text-gray-400 text-xs">Color: {vehicle.color}</p>
+                          <p className="text-gray-400 text-xs">
+                            Color: {vehicle.color}
+                          </p>
                         )}
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-gray-400 text-center py-4">No vehicles registered</p>
+                <p className="text-gray-400 text-center py-4">
+                  No vehicles registered
+                </p>
               )}
             </div>
           </div>
@@ -367,35 +433,45 @@ const CustomerManagement: React.FC = () => {
           <div className="space-y-3">
             {isLoadingDetails ? (
               <div className="animate-pulse space-y-3">
-                {[1, 2].map(i => (
-                  <div key={i} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+                {[1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-gray-800/50 rounded-lg p-4 border border-gray-700"
+                  >
                     <div className="h-4 bg-gray-700 rounded w-32 mb-2"></div>
                     <div className="h-3 bg-gray-700 rounded w-48"></div>
                   </div>
                 ))}
               </div>
             ) : customerBookings.length > 0 ? (
-              customerBookings.map(booking => (
-                <div key={booking.id} className="bg-gray-800/50 rounded-lg p-4 border border-gray-700">
+              customerBookings.map((booking) => (
+                <div
+                  key={booking.id}
+                  className="bg-gray-800/50 rounded-lg p-4 border border-gray-700"
+                >
                   <div className="flex justify-between items-start">
                     <div>
                       <p className="text-white font-medium">
-                        {new Date(booking.bookingDate).toLocaleDateString()} - {booking.vehicleModel}
+                        {new Date(booking.bookingDate).toLocaleDateString()} -{" "}
+                        {booking.vehicleModel}
                       </p>
                       <p className="text-gray-400 text-sm mt-1">
-                        {booking.registrationNumber} - {booking.reportedIssue || 'No issue reported'}
+                        {booking.registrationNumber} -{" "}
+                        {booking.reportedIssue || "No issue reported"}
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className={`inline-block px-2 py-1 rounded-full text-xs ${
-                        booking.status === 'Completed' 
-                          ? 'bg-green-500/20 text-green-400 border border-green-500/30'
-                          : booking.status === 'In Progress'
-                          ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30'
-                          : booking.status === 'Confirmed'
-                          ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                          : 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
-                      }`}>
+                      <span
+                        className={`inline-block px-2 py-1 rounded-full text-xs ${
+                          booking.status === "Completed"
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : booking.status === "In Progress"
+                            ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                            : booking.status === "Confirmed"
+                            ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                            : "bg-orange-500/20 text-orange-400 border border-orange-500/30"
+                        }`}
+                      >
                         {booking.status}
                       </span>
                       {booking.estimatedCost && (
@@ -408,7 +484,9 @@ const CustomerManagement: React.FC = () => {
                 </div>
               ))
             ) : (
-              <p className="text-gray-400 text-center py-4">No bookings found</p>
+              <p className="text-gray-400 text-center py-4">
+                No bookings found
+              </p>
             )}
           </div>
         </div>
@@ -422,10 +500,12 @@ const CustomerManagement: React.FC = () => {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Customer Management</h2>
-          <p className="text-gray-400">Manage all customer accounts and their vehicles</p>
+          <p className="text-gray-400">
+            Manage all customer accounts and their vehicles
+          </p>
         </div>
         <div className="flex gap-3">
-          <button 
+          <button
             onClick={refreshData}
             disabled={isLoading}
             className="p-2 text-gray-400 hover:text-amber-400 transition-colors rounded-lg hover:bg-gray-800/50 disabled:opacity-50"
@@ -447,7 +527,7 @@ const CustomerManagement: React.FC = () => {
         <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 text-red-400">
           <div className="flex items-center justify-between">
             <span>{error}</span>
-            <button 
+            <button
               onClick={refreshData}
               className="text-red-400 hover:text-red-300"
             >
@@ -473,31 +553,31 @@ const CustomerManagement: React.FC = () => {
         </div>
         <div className="flex space-x-2">
           <button
-            onClick={() => setActiveFilter('all')}
+            onClick={() => setActiveFilter("all")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeFilter === 'all'
-                ? 'bg-amber-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              activeFilter === "all"
+                ? "bg-amber-500 text-white"
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             }`}
           >
             All
           </button>
           <button
-            onClick={() => setActiveFilter('recent')}
+            onClick={() => setActiveFilter("recent")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeFilter === 'recent'
-                ? 'bg-amber-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              activeFilter === "recent"
+                ? "bg-amber-500 text-white"
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             }`}
           >
             Recent
           </button>
           <button
-            onClick={() => setActiveFilter('active')}
+            onClick={() => setActiveFilter("active")}
             className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-              activeFilter === 'active'
-                ? 'bg-amber-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              activeFilter === "active"
+                ? "bg-amber-500 text-white"
+                : "bg-gray-800 text-gray-400 hover:bg-gray-700"
             }`}
           >
             Active
@@ -508,19 +588,27 @@ const CustomerManagement: React.FC = () => {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-white">{customerStats.totalCustomers}</p>
+          <p className="text-2xl font-bold text-white">
+            {customerStats.totalCustomers}
+          </p>
           <p className="text-gray-400 text-sm">Total Customers</p>
         </div>
         <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-white">{customerStats.totalVehicles}</p>
+          <p className="text-2xl font-bold text-white">
+            {customerStats.totalVehicles}
+          </p>
           <p className="text-gray-400 text-sm">Total Vehicles</p>
         </div>
         <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-white">{customerStats.totalBookings}</p>
+          <p className="text-2xl font-bold text-white">
+            {customerStats.totalBookings}
+          </p>
           <p className="text-gray-400 text-sm">Total Bookings</p>
         </div>
         <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-white">{customerStats.activeCustomers}</p>
+          <p className="text-2xl font-bold text-white">
+            {customerStats.activeCustomers}
+          </p>
           <p className="text-gray-400 text-sm">Active Customers</p>
         </div>
       </div>
@@ -543,35 +631,50 @@ const CustomerManagement: React.FC = () => {
                     <div className="flex items-center space-x-4">
                       <div className="w-12 h-12 bg-amber-500/20 rounded-full flex items-center justify-center group-hover:bg-amber-500/30 transition-colors">
                         <span className="text-amber-400 font-semibold">
-                          {customer.name.split(' ').map(n => n[0]).join('')}
+                          {customer.name
+                            .split(" ")
+                            .map((n) => n[0])
+                            .join("")}
                         </span>
                       </div>
                       <div>
                         <h3 className="text-white font-semibold group-hover:text-amber-400 transition-colors">
                           {customer.name}
                         </h3>
-                        <p className="text-gray-400 text-sm">{customer.email}</p>
-                        <p className="text-gray-400 text-sm">{customer.phone}</p>
+                        <p className="text-gray-400 text-sm">
+                          {customer.email}
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          {customer.phone}
+                        </p>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-6">
                       <div className="text-right">
                         <div className="flex items-center space-x-4">
                           <div className="text-center">
-                            <p className="text-white font-bold">{customer.totalVehicles}</p>
+                            <p className="text-white font-bold">
+                              {customer.totalVehicles}
+                            </p>
                             <p className="text-gray-400 text-xs">Vehicles</p>
                           </div>
                           <div className="text-center">
-                            <p className="text-white font-bold">{customer.totalBookings}</p>
+                            <p className="text-white font-bold">
+                              {customer.totalBookings}
+                            </p>
                             <p className="text-gray-400 text-xs">Bookings</p>
                           </div>
                         </div>
-                        <span className={`inline-block mt-2 px-2 py-1 rounded-full text-xs ${status.color}`}>
+                        <span
+                          className={`inline-block mt-2 px-2 py-1 rounded-full text-xs ${status.color}`}
+                        >
                           {status.text}
                         </span>
                       </div>
-                      <div className="text-gray-400 group-hover:text-amber-400 transition-colors">→</div>
+                      <div className="text-gray-400 group-hover:text-amber-400 transition-colors">
+                        →
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -582,7 +685,9 @@ const CustomerManagement: React.FC = () => {
 
         {!isLoading && customers.length === 0 && (
           <div className="p-8 text-center">
-            <p className="text-gray-400">No customers found matching your search.</p>
+            <p className="text-gray-400">
+              No customers found matching your search.
+            </p>
           </div>
         )}
       </div>

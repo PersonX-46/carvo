@@ -1,15 +1,15 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
 export async function GET(request: NextRequest) {
   try {
-    // Get total customers count
+    // Get total customers
     const totalCustomers = await prisma.customer.count();
 
-    // Get total vehicles count
+    // Get total vehicles
     const totalVehicles = await prisma.vehicle.count();
 
-    // Get total bookings count
+    // Get total bookings
     const totalBookings = await prisma.booking.count();
 
     // Get recent customers (last 30 days)
@@ -23,28 +23,33 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Get active customers (with 3+ bookings)
-    const activeCustomers = await prisma.customer.count({
+    // Get active customers (bookings in last 90 days)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    
+    // Count distinct customers with bookings in last 90 days
+    const activeCustomersResult = await prisma.booking.groupBy({
+      by: ['customerId'],
       where: {
-        bookings: {
-          some: {} // At least one booking
+        createdAt: {
+          gte: ninetyDaysAgo
         }
       }
     });
+    const activeCustomers = activeCustomersResult.length;
 
-    const stats = {
+    return NextResponse.json({
       totalCustomers,
       totalVehicles,
       totalBookings,
       recentCustomers,
       activeCustomers
-    };
+    });
 
-    return NextResponse.json(stats);
   } catch (error) {
-    console.error('Error fetching customer stats:', error);
+    console.error("Error fetching customer stats:", error);
     return NextResponse.json(
-      { error: 'Failed to fetch customer statistics' },
+      { error: "Failed to fetch customer statistics" },
       { status: 500 }
     );
   }

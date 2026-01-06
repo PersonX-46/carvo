@@ -195,9 +195,8 @@ export async function POST(
         where: { bookingId: bookingId },
         update: serviceData,
         create: {
-          bookingId: bookingId,
+          bookingId,
           workerId: workerIdNum,
-          serviceStatus: status,
           ...serviceData
         }
       });

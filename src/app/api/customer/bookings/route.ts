@@ -4,30 +4,18 @@ import { getCurrentUser } from '../../../../lib/auth';
 
 const prisma = new PrismaClient();
 
+
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    
-    if (!user || user.type !== 'customer') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
-
-    let where: any = {
-      customerId: user.id
-    };
-
-    if (status) {
-      where.status = status;
-    }
+    // Get customer ID from auth session or token
+    // For now, we'll use a placeholder - you should implement proper authentication
+    const customerId = 1; // Replace with actual customer ID from auth
 
     const bookings = await prisma.booking.findMany({
-      where,
+      where: {
+        customerId: customerId,
+        status: { not: "Cancelled" } // Optional: filter out cancelled bookings
+      },
       include: {
         vehicle: {
           select: {
@@ -35,7 +23,7 @@ export async function GET(request: NextRequest) {
             registrationNumber: true,
             year: true,
             type: true,
-            color: true
+            mileage: true
           }
         },
         service: {
@@ -44,8 +32,8 @@ export async function GET(request: NextRequest) {
               select: {
                 id: true,
                 name: true,
-                email: true,
                 phone: true,
+                email: true,
                 position: true,
                 specialization: true,
                 rating: true,
@@ -56,58 +44,42 @@ export async function GET(request: NextRequest) {
           }
         }
       },
-      orderBy: { createdAt: 'desc' }
+      orderBy: {
+        bookingDate: 'desc'
+      }
     });
 
-    // Transform the data to match your frontend interface
+    // Transform statuses for frontend
     const transformedBookings = bookings.map(booking => ({
-      id: booking.id,
-      customerId: booking.customerId,
-      vehicleId: booking.vehicleId,
-      serviceId: booking.serviceId,
-      bookingDate: booking.bookingDate.toISOString(),
-      status: booking.status,
-      reportedIssue: booking.reportedIssue,
-      estimatedCost: booking.estimatedCost,
-      confirmed: booking.confirmed,
-      duration: booking.duration,
-      createdAt: booking.createdAt.toISOString(),
-      vehicle: {
-        model: booking.vehicle.model,
-        registrationNumber: booking.vehicle.registrationNumber,
-        year: booking.vehicle.year,
-        type: booking.vehicle.type,
-        color: booking.vehicle.color
-      },
-      service: booking.service ? {
-        serviceStatus: booking.service.serviceStatus,
-        repairNotes: booking.service.repairNotes,
-        serviceCost: booking.service.serviceCost,
-        spareParts: booking.service.spareParts,
-        completionDate: booking.service.completionDate?.toISOString() || null,
-        duration: booking.service.duration,
-        worker: booking.service.worker ? {
-          id: booking.service.worker.id,
-          name: booking.service.worker.name,
-          phone: booking.service.worker.phone,
-          email: booking.service.worker.email,
-          position: booking.service.worker.position,
-          specialization: booking.service.worker.specialization,
-          rating: booking.service.worker.rating,
-          totalServices: booking.service.worker.totalServices,
-          hireDate: booking.service.worker.hireDate.toISOString()
-        } : undefined
-      } : undefined
+      ...booking,
+      // Ensure status matches frontend expectations
+      status: booking.status.replace(/_/g, " "), // Convert "Price_Pending" to "Price Pending"
+      // Ensure price approval fields exist
+      priceApproved: booking.priceApproved || false,
+      priceRejected: booking.priceRejected || false,
+      rejectionReason: booking.rejectionReason || null
     }));
 
-    return NextResponse.json({ 
-      bookings: transformedBookings 
+    return NextResponse.json({
+      success: true,
+      bookings: transformedBookings,
+      count: transformedBookings.length,
+      priceApprovalCount: transformedBookings.filter(b => 
+        (b.status === "Price Pending" || b.status === "Confirmed") &&
+        (b.estimatedCost !== null || b.estimatedMinCost !== null) &&
+        b.priceApproved === false &&
+        b.priceRejected === false
+      ).length
     });
 
   } catch (error) {
-    console.error('Get bookings error:', error);
+    console.error("Error fetching customer bookings:", error);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        success: false,
+        error: "Failed to fetch bookings",
+        bookings: []
+      },
       { status: 500 }
     );
   }

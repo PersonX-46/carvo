@@ -25,10 +25,7 @@ export async function GET(request: NextRequest) {
           { priceApproved: false },
           { priceApproved: null }
         ],
-        OR: [
-          { priceRejected: false },
-          { priceRejected: null }
-        ]
+        
       },
       include: {
         customer: {

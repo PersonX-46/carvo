@@ -59,7 +59,8 @@ model Service {
   bookingId      Int       @unique
   workerId       Int?
   serviceStatus  String    @default("Pending")
-  repairNotes    String?
+  repairNotes    String?   @db.Text
+  finalPriceSet  Boolean   @default(false) // Track if final price is set
   serviceCost    Float?
   spareParts     String?
   completionDate DateTime?
@@ -90,26 +91,26 @@ model Vehicle {
 
 // Add to your Booking model
 model Booking {
-  id            Int      @id @default(autoincrement())
-  workerId      Int?
-  customerId    Int
-  vehicleId     Int
-  serviceId     Int?     @unique
-  bookingDate   DateTime
-  status        String   @default("Pending")
-  reportedIssue String?
-  estimatedCost Float?
-  confirmed     Boolean  @default(false)
-  duration      Float?   @default(1.0)
-
-  priceApproved   Boolean? @default(false)
-  priceRejected   Boolean? @default(false)
-  rejectionReason String?
-
-  customer  Customer @relation(fields: [customerId], references: [id])
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id])
-  service   Service?
-  createdAt DateTime @default(now())
+  id               Int      @id @default(autoincrement())
+  workerId         Int?
+  customerId       Int
+  vehicleId        Int
+  serviceId        Int?     @unique
+  bookingDate      DateTime
+  status           String   @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled, Price Pending, Price Rejected  reportedIssue    String?
+  estimatedCost    Float?
+  estimatedMinCost Float? // Add this line
+  estimatedMaxCost Float? // Add this line
+  finalCost        Float? // Add this line
+  confirmed        Boolean  @default(false)
+  duration         Float?   @default(1.0)
+  priceApproved    Boolean? @default(false)
+  priceRejected    Boolean? @default(false)
+  rejectionReason  String?
+  customer         Customer @relation(fields: [customerId], references: [id])
+  vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
+  service          Service?
+  createdAt        DateTime @default(now())
 }
 
 model Stock {
