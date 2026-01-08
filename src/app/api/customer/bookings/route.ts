@@ -4,16 +4,21 @@ import { getCurrentUser } from '../../../../lib/auth';
 
 const prisma = new PrismaClient();
 
-
 export async function GET(request: NextRequest) {
   try {
-    // Get customer ID from auth session or token
-    // For now, we'll use a placeholder - you should implement proper authentication
-    const customerId = 1; // Replace with actual customer ID from auth
+    // Get customer from auth
+    const user = await getCurrentUser();
+    
+    if (!user || user.type !== 'customer') {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
 
     const bookings = await prisma.booking.findMany({
       where: {
-        customerId: customerId,
+        customerId: user.id,
         status: { not: "Cancelled" } // Optional: filter out cancelled bookings
       },
       include: {
@@ -85,7 +90,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Add to your existing POST method
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -101,15 +105,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate required fields
+    if (!vehicleId || !bookingDate) {
+      return NextResponse.json(
+        { error: 'Missing required fields: vehicleId and bookingDate' },
+        { status: 400 }
+      );
+    }
+
+    // Check if vehicle belongs to customer
+    const vehicle = await prisma.vehicle.findFirst({
+      where: {
+        id: parseInt(vehicleId.toString()),
+        customerId: user.id
+      }
+    });
+
+    if (!vehicle) {
+      return NextResponse.json(
+        { error: 'Vehicle not found or does not belong to you' },
+        { status: 404 }
+      );
+    }
+
     // Create booking with Pending status and no estimated cost initially
     const booking = await prisma.booking.create({
       data: {
-        customerId: user.id, // Use authenticated user's ID
-        vehicleId: parseInt(vehicleId),
+        customerId: user.id,
+        vehicleId: parseInt(vehicleId.toString()),
         bookingDate: new Date(bookingDate),
         status: 'Pending',
-        reportedIssue,
-        // estimatedCost will be set later by worker
+        reportedIssue: reportedIssue || null, // Use null if not provided
         confirmed: false,
         duration: 2, // Default duration
       },
@@ -134,18 +160,37 @@ export async function POST(request: NextRequest) {
     });
 
     return NextResponse.json({ 
+      success: true,
       booking,
       message: 'Booking created successfully. Our team will contact you with a price quote.' 
     });
+
   } catch (error) {
     console.error('Create booking error:', error);
+    
+    // Check for specific Prisma errors
+    if (error instanceof Error) {
+      if (error.message.includes('Unknown argument')) {
+        console.error('Prisma schema mismatch. Available fields for Booking:');
+        console.error('- customerId: Int');
+        console.error('- vehicleId: Int');
+        console.error('- bookingDate: DateTime');
+        console.error('- status: String');
+        console.error('- reportedIssue: String?');
+        console.error('- confirmed: Boolean');
+        console.error('- duration: Float?');
+      }
+    }
+    
     return NextResponse.json(
-      { error: 'Failed to create booking' },
+      { 
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create booking'
+      },
       { status: 500 }
     );
   }
 }
-
 // Add PUT method for updating booking status (cancellation)
 export async function PUT(
   request: NextRequest,

@@ -22,6 +22,7 @@ model Customer {
   supportTickets SupportTicket[]
   aiChats        AIChat[]
   createdAt      DateTime        @default(now())
+  Payment        Payment[]
 }
 
 model Admin {
@@ -89,7 +90,23 @@ model Vehicle {
   createdAt          DateTime  @default(now())
 }
 
-// Add to your Booking model
+model Payment {
+  id             Int       @id @default(autoincrement())
+  bookingId      Int       @unique
+  customerId     Int
+  amount         Float
+  status         String    @default("pending") // pending, processing, completed, failed, refunded
+  paymentMethod  String // credit_card, debit_card, online_banking, cash
+  transactionId  String?   @unique
+  paymentDate    DateTime?
+  completedDate  DateTime?
+  paymentDetails String?   @db.Text // Store payment gateway response or cash receipt details
+  customer       Customer  @relation(fields: [customerId], references: [id])
+  booking        Booking   @relation(fields: [bookingId], references: [id])
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
 model Booking {
   id               Int      @id @default(autoincrement())
   workerId         Int?
@@ -97,11 +114,12 @@ model Booking {
   vehicleId        Int
   serviceId        Int?     @unique
   bookingDate      DateTime
-  status           String   @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled, Price Pending, Price Rejected  reportedIssue    String?
+  status           String   @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled, Price Pending, Price Rejected
+  reportedIssue    String?
   estimatedCost    Float?
-  estimatedMinCost Float? // Add this line
-  estimatedMaxCost Float? // Add this line
-  finalCost        Float? // Add this line
+  estimatedMinCost Float?
+  estimatedMaxCost Float?
+  finalCost        Float?
   confirmed        Boolean  @default(false)
   duration         Float?   @default(1.0)
   priceApproved    Boolean? @default(false)
@@ -110,9 +128,14 @@ model Booking {
   customer         Customer @relation(fields: [customerId], references: [id])
   vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
   service          Service?
-  createdAt        DateTime @default(now())
-}
+  paymentStatus    String?  @default("unpaid") // unpaid, pending, paid, partially_paid
+  amountPaid       Float?   @default(0.0)
+  balanceDue       Float?   @default(0.0)
 
+  // Relations
+  payment   Payment?
+  createdAt DateTime @default(now())
+}
 model Stock {
   id              Int             @id @default(autoincrement())
   itemName        String

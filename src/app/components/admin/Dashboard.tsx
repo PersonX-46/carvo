@@ -7,7 +7,7 @@ import WorkerManagement from "./WorkerManagement";
 import InventoryManagement from "./InventoryManagement";
 import ReportsManagement from "./ReportsManagement";
 import FinanceManagement from "./FinanceManagement";
-
+import PaymentTracking from "./PaymentTracking";
 interface DashboardStats {
   totalCustomers: number;
   totalWorkers: number;
@@ -145,6 +145,7 @@ const AdminDashboard: React.FC = () => {
     { id: "bookings", icon: "📅", label: "Bookings" },
     { id: "customers", icon: "👥", label: "Customers" },
     { id: "workers", icon: "🔧", label: "Workers" },
+    { id: "payments", icon: "💰", label: "Payments" }, // <-- Add this
     { id: "inventory", icon: "📦", label: "Inventory" },
     { id: "finance", icon: "💰", label: "Finance" }, // Add this
     { id: "reports", icon: "📈", label: "Reports" },
@@ -486,6 +487,7 @@ const AdminDashboard: React.FC = () => {
             {activeTab === "workers" && <WorkerManagement />}
             {activeTab === "inventory" && <InventoryManagement />}
             {activeTab === "reports" && <ReportsManagement />}
+            {activeTab === "payments" && <PaymentTracking />}
 
             {/* Placeholder for other tabs */}
             {activeTab === "finance" && <FinanceManagement />}

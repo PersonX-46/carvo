@@ -32,7 +32,6 @@ export async function POST(
       include: {
         customer: true,
         vehicle: true,
-        worker: true,
         service: true
       }
     });
@@ -141,15 +140,15 @@ export async function POST(
     });
 
     // If approved, send notification to worker
-    if (approved && booking.) {
+    if (approved && booking.workerId) {
       try {
-        const workerMessage = `Hello ${booking.worker.name},\n\n` +
+        const workerMessage = `Hello,\n\n` +
           `✅ Customer has APPROVED your price estimate for ${booking.vehicle.model}.\n` +
           `You can now start work on this booking.\n` +
           `Estimate: RM ${booking.estimatedMinCost?.toFixed(2) || booking.estimatedCost?.toFixed(2) || '0.00'} - RM ${booking.estimatedMaxCost?.toFixed(2) || booking.estimatedCost?.toFixed(2) || '0.00'}\n\n` +
           `Thank you,\nCheng Service Team`;
         
-        console.log(`Would notify worker ${booking.worker.name}: ${workerMessage}`);
+        console.log(`Would notify worker ${booking.workerId}: ${workerMessage}`);
         
       } catch (notificationError) {
         console.error("Failed to send worker notification:", notificationError);
