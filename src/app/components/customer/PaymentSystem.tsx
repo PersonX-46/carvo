@@ -744,85 +744,139 @@ const PaymentSystem: React.FC<PaymentSystemProps> = ({
   );
 
   // Step 4: Generated Receipt
-  const renderGeneratedReceipt = () => (
-    <div className="space-y-6">
-      <div className="bg-gradient-to-br from-green-900/20 to-emerald-900/20 rounded-xl p-8 border border-green-500/30">
-        <div className="text-center mb-8">
-          <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-4" />
-          <h3 className="text-3xl font-bold text-white mb-2">
-            Payment Successful!
-          </h3>
-          <p className="text-gray-300">
-            Your payment has been processed successfully
-          </p>
-        </div>
+  // In the PaymentSystem component, update the generated receipt section:
 
-        <div className="bg-gray-900/50 rounded-xl p-6 mb-6">
-          <div className="space-y-4">
-            <div className="flex justify-between items-center pb-4 border-b border-gray-700">
-              <span className="text-gray-300">Transaction ID:</span>
-              <span className="font-mono font-bold text-white">
-                {generatedReceipt?.transactionId || "TRX-123456789"}
-              </span>
-            </div>
+  // Step 4: Generated Receipt (with verification status)
+  const renderGeneratedReceipt = () => {
+    // Check if payment requires verification
+    const requiresVerification =
+      paymentMethod === "duitnow" || paymentMethod === "cash";
 
-            <div className="flex justify-between">
-              <span className="text-gray-300">Booking ID:</span>
-              <span className="font-semibold text-white">#{booking.id}</span>
-            </div>
+    return (
+      <div className="space-y-6">
+        <div
+          className={`rounded-xl p-8 border ${
+            requiresVerification
+              ? "bg-blue-900/20 border-blue-500/30"
+              : "bg-green-900/20 border-green-500/30"
+          }`}
+        >
+          <div className="text-center mb-8">
+            {requiresVerification ? (
+              <>
+                <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-4xl">⏳</span>
+                </div>
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  Payment Submitted
+                </h3>
+                <p className="text-gray-300">
+                  Your payment receipt is pending verification
+                </p>
+              </>
+            ) : (
+              <>
+                <CheckCircle className="w-20 h-20 text-green-400 mx-auto mb-4" />
+                <h3 className="text-3xl font-bold text-white mb-2">
+                  Payment Successful!
+                </h3>
+                <p className="text-gray-300">
+                  Your payment has been processed successfully
+                </p>
+              </>
+            )}
+          </div>
 
-            <div className="flex justify-between">
-              <span className="text-gray-300">Vehicle:</span>
-              <span className="text-white">{booking.vehicle.model}</span>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-gray-300">Payment Method:</span>
-              <span className="text-white">
-                {paymentMethods.find((m) => m.id === paymentMethod)?.name}
-              </span>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-gray-300">Date & Time:</span>
-              <span className="text-white">{new Date().toLocaleString()}</span>
-            </div>
-
-            <div className="pt-4 border-t border-gray-700">
-              <div className="flex justify-between text-xl font-bold">
-                <span className="text-white">Total Amount Paid:</span>
-                <span className="text-amber-400">
-                  RM {booking.finalCost?.toFixed(2)}
+          <div className="bg-gray-900/50 rounded-xl p-6 mb-6">
+            <div className="space-y-4">
+              {/* Transaction details */}
+              <div className="flex justify-between items-center pb-4 border-b border-gray-700">
+                <span className="text-gray-300">Transaction ID:</span>
+                <span className="font-mono font-bold text-white">
+                  {generatedReceipt?.transactionId || "TRX-123456789"}
                 </span>
               </div>
+
+              {/* ... other receipt details ... */}
+
+              {/* Verification Status */}
+              {requiresVerification && (
+                <div className="mt-4 p-4 bg-blue-500/10 rounded-lg border border-blue-500/30">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-sm">!</span>
+                    </div>
+                    <span className="text-blue-400 font-semibold">
+                      Verification Required
+                    </span>
+                  </div>
+                  <p className="text-gray-300 text-sm">
+                    Your receipt has been submitted for verification. Once
+                    verified by admin, you will be able to print the official
+                    receipt. This usually takes 1-2 business hours.
+                  </p>
+                </div>
+              )}
+
+              {!requiresVerification && (
+                <div className="mt-4 p-4 bg-green-500/10 rounded-lg border border-green-500/30">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    <span className="text-green-400 font-semibold">
+                      Payment Verified Automatically
+                    </span>
+                  </div>
+                  <p className="text-gray-300 text-sm mt-1">
+                    Your payment has been verified and receipt is ready.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Show download/print buttons only if verified or doesn't require verification */}
+          {!requiresVerification || generatedReceipt?.receiptVerified ? (
+            <div className="flex gap-4">
+              <button
+                onClick={handlePrintReceipt}
+                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <Printer className="w-5 h-5" />
+                Print Receipt
+              </button>
+              <button
+                onClick={handleDownloadReceipt}
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                <Download className="w-5 h-5" />
+                Download Receipt
+              </button>
+            </div>
+          ) : (
+            <div className="text-center p-4">
+              <p className="text-gray-400">
+                Receipt will be available after admin verification
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-4">
-          <button
-            onClick={handlePrintReceipt}
-            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <Printer className="w-5 h-5" />
-            Print Receipt
-          </button>
-          <button
-            onClick={handleDownloadReceipt}
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-semibold transition-colors flex items-center justify-center gap-2"
-          >
-            <Download className="w-5 h-5" />
-            Download Receipt
-          </button>
+        <div className="text-center text-gray-400 text-sm">
+          {requiresVerification ? (
+            <>
+              <p>You will receive an email once your receipt is verified</p>
+              <p>Check your booking status for verification updates</p>
+            </>
+          ) : (
+            <>
+              <p>A copy of this receipt has been sent to your email</p>
+              <p>Your booking status will be updated automatically</p>
+            </>
+          )}
         </div>
       </div>
-
-      <div className="text-center text-gray-400 text-sm">
-        <p>A copy of this receipt has been sent to your email</p>
-        <p>Your booking status will be updated automatically</p>
-      </div>
-    </div>
-  );
+    );
+  };
 
   // Action buttons for each step
   const renderActionButtons = () => {

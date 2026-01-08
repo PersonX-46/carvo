@@ -56,8 +56,12 @@ interface ServiceBooking {
   paymentStatus?: string;
   amountPaid?: number;
   balanceDue?: number;
+  // Add these for verification tracking
+  paymentVerified?: boolean;
+  paymentVerificationDate?: string;
+  verifiedBy?: string;
+  receiptUrl?: string;
 }
-
 interface CustomerVehicle {
   id: number;
   model: string;
@@ -109,7 +113,6 @@ const BookingManagement: React.FC = () => {
   const [priceApprovalCount, setPriceApprovalCount] = useState(0);
   const [customerId, setCustomerId] = useState<number>(1);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-
 
   useEffect(() => {
     fetchData();
@@ -331,6 +334,264 @@ const BookingManagement: React.FC = () => {
         return "Price Approval";
       default:
         return "All";
+    }
+  };
+
+  // Add this function inside your component
+  // Replace the existing handlePrintReceipt function with this:
+  const handlePrintReceipt = async (booking: ServiceBooking) => {
+    try {
+      // Fetch receipt data from your API
+      const response = await fetch(
+        `/api/customer/bookings/${booking.id}/receipt`
+      );
+      const data = await response.json();
+
+      // Check if receipt can be generated
+      if (!response.ok || !data.canGenerateReceipt) {
+        // Show appropriate message based on status
+        if (data.status === "pending") {
+          alert(
+            "⏳ Your payment receipt is pending verification by admin. You will be able to print the receipt once it is verified."
+          );
+        } else if (data.status === "rejected") {
+          alert(
+            `❌ Receipt rejected: ${
+              data.rejectionReason || "No reason provided"
+            }\n\nPlease contact admin for assistance.`
+          );
+        } else if (data.message) {
+          alert(data.message);
+        } else {
+          alert("Receipt verification required. Please contact admin.");
+        }
+        return;
+      }
+
+      // Create a new window for viewing/printing
+      const printWindow = window.open("", "_blank");
+      if (!printWindow) {
+        alert("Please allow popups to view receipt");
+        return;
+      }
+
+      // Create receipt HTML (same as before, but only if verified)
+      printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt - ${booking.vehicle.registrationNumber}</title>
+        <style>
+          /* Your existing CSS styles */
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+          
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            color: #f1f5f9;
+            min-height: 100vh;
+            padding: 20px;
+          }
+          
+          /* ... rest of your CSS styles ... */
+        </style>
+      </head>
+      <body>
+        <div class="receipt-container">
+          <!-- Header with verification badge -->
+          <div class="receipt-header">
+            <h1 class="receipt-title">CHENGSERVICE</h1>
+            <p class="receipt-subtitle">OFFICIAL PAYMENT RECEIPT</p>
+            <div class="verification-badge">
+              <span class="verified-text">✅ VERIFIED RECEIPT</span>
+              <span class="verified-by">Verified by: ${
+                data.verifiedBy || "Admin"
+              }</span>
+            </div>
+          </div>
+          
+          <!-- Content -->
+          <div class="receipt-content">
+            <!-- Transaction Info with verification details -->
+            <div class="section">
+              <h2 class="section-title">Transaction Information</h2>
+              <div class="grid">
+                <div>
+                  <div class="info-row">
+                    <span class="info-label">Transaction ID</span>
+                    <span class="transaction-id">${data.transactionId}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Booking ID</span>
+                    <span class="booking-id">#${booking.id}</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="info-row">
+                    <span class="info-label">Payment Date</span>
+                    <span class="info-value">${new Date(
+                      data.date
+                    ).toLocaleDateString("en-MY")}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Verified Date</span>
+                    <span class="info-value">${new Date(
+                      data.verifiedAt || data.date
+                    ).toLocaleDateString("en-MY")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Customer & Vehicle -->
+            <div class="section">
+              <h2 class="section-title">Customer & Vehicle</h2>
+              <div class="grid">
+                <div>
+                  <div class="info-row">
+                    <span class="info-label">Customer Name</span>
+                    <span class="customer-name">${
+                      data.customerName || "Customer"
+                    }</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Phone</span>
+                    <span class="info-value">${
+                      data.customerPhone || "Not Provided"
+                    }</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Email</span>
+                    <span class="info-value">${
+                      data.customerEmail || "Not Provided"
+                    }</span>
+                  </div>
+                </div>
+                <div>
+                  <div class="info-row">
+                    <span class="info-label">Vehicle</span>
+                    <span class="vehicle-info">${booking.vehicle.model}</span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">Registration</span>
+                    <span class="registration">${
+                      booking.vehicle.registrationNumber
+                    }</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Payment Details -->
+            <div class="section">
+              <h2 class="section-title">Payment Details</h2>
+              <div>
+                <div class="info-row">
+                  <span class="info-label">Payment Method</span>
+                  <div class="payment-method">
+                    ${
+                      data.paymentMethod === "DuitNow"
+                        ? "📱"
+                        : data.paymentMethod === "Credit Card"
+                        ? "💳"
+                        : data.paymentMethod === "FPX"
+                        ? "🏦"
+                        : "💰"
+                    }
+                    <span>${data.paymentMethod || "Online Payment"}</span>
+                  </div>
+                </div>
+                
+                <div class="separator"></div>
+                
+                <div class="info-row">
+                  <span class="info-label">Service Cost</span>
+                  <div>
+                    <div class="amount">RM ${
+                      booking.finalCost?.toFixed(2) || "0.00"
+                    }</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Verification Details -->
+            <div class="section verification-section">
+              <h2 class="section-title">Verification Details</h2>
+              <div>
+                <div class="info-row">
+                  <span class="info-label">Payment Status</span>
+                  <span class="status-badge status-verified">
+                    ✅ VERIFIED
+                  </span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Verified By</span>
+                  <span class="info-value">${
+                    data.verifiedBy || "ChengService Admin"
+                  }</span>
+                </div>
+                <div class="info-row">
+                  <span class="info-label">Verification Date</span>
+                  <span class="info-value">${new Date(
+                    data.verifiedAt || data.date
+                  ).toLocaleString("en-MY")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Footer -->
+          <div class="footer">
+            <p>Thank you for choosing ChengService</p>
+            <div class="contact-info">
+              <div class="contact-item">
+                📞 03-1234 5678
+              </div>
+              <div class="contact-item">
+                📧 info@chengservice.com
+              </div>
+              <div class="contact-item">
+                📍 123 Workshop Street, Kuala Lumpur
+              </div>
+            </div>
+            <p style="margin-top: 20px; font-size: 12px; color: #64748b;">
+              This is an official verified receipt. Please keep it for your records.
+            </p>
+          </div>
+        </div>
+        
+        <div class="button-container">
+          <button class="print-button" onclick="window.print()">🖨️ Print Receipt</button>
+        </div>
+        
+        <script>
+          // Close window after print (optional)
+          window.onafterprint = function() {
+            setTimeout(() => {
+              if (confirm('Close receipt window?')) {
+                window.close();
+              }
+            }, 500);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+
+      printWindow.document.close();
+
+      // Focus the new window
+      printWindow.focus();
+    } catch (error) {
+      console.error("Error generating receipt:", error);
+      alert("Failed to generate receipt. Please try again.");
     }
   };
 
@@ -1257,16 +1518,78 @@ const BookingManagement: React.FC = () => {
                       </div>
                     )}
                     {booking.status === "Completed" && booking.finalCost && (
-                      <button
-                        onClick={() => {
-                          // Open payment modal
-                          setSelectedBooking(booking);
-                          setIsPaymentModalOpen(true);
-                        }}
-                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold transition-all"
-                      >
-                        💳 Pay RM {booking.finalCost.toFixed(2)}
-                      </button>
+                      <div className="mt-4">
+                        {/* Payment status badge */}
+                        <div className="mb-3">
+                          <span
+                            className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                              booking.paymentStatus === "paid" &&
+                              booking.paymentVerified
+                                ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                                : booking.paymentStatus === "paid" &&
+                                  !booking.paymentVerified
+                                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                : booking.paymentStatus === "partially_paid"
+                                ? "bg-yellow-500/20 text-yellow-400 border border-yellow-500/30"
+                                : "bg-red-500/20 text-red-400 border border-red-500/30"
+                            }`}
+                          >
+                            {booking.paymentStatus === "paid" &&
+                            booking.paymentVerified
+                              ? "✅ VERIFIED"
+                              : booking.paymentStatus === "paid" &&
+                                !booking.paymentVerified
+                              ? "⏳ PENDING VERIFICATION"
+                              : booking.paymentStatus === "partially_paid"
+                              ? "⏳ PARTIAL"
+                              : "💳 PENDING"}
+                          </span>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-2">
+                          {/* Payment button - only show if not fully paid */}
+                          {booking.paymentStatus !== "paid" && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedBooking(booking);
+                                setIsPaymentModalOpen(true);
+                              }}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-2 rounded-xl font-semibold transition-all text-sm"
+                            >
+                              Pay{" "}
+                              {booking.paymentStatus === "partially_paid"
+                                ? `Balance RM ${booking.balanceDue?.toFixed(2)}`
+                                : `RM ${booking.finalCost?.toFixed(2)}`}
+                            </button>
+                          )}
+
+                          {/* Print receipt button - show only if verified */}
+                          {booking.paymentStatus === "paid" &&
+                            booking.paymentVerified && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintReceipt(booking);
+                                }}
+                                className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-2 rounded-xl font-semibold transition-all text-sm flex items-center justify-center gap-1"
+                              >
+                                <span>📄</span>
+                                Receipt
+                              </button>
+                            )}
+
+                          {/* Pending verification message */}
+                          {booking.paymentStatus === "paid" &&
+                            !booking.paymentVerified && (
+                              <div className="flex-1 bg-yellow-500/20 text-yellow-400 px-4 py-2 rounded-xl text-sm flex items-center justify-center gap-1 border border-yellow-500/30">
+                                <span>⏳</span>
+                                Verification Pending
+                              </div>
+                            )}
+                        </div>
+                      </div>
                     )}
                     <PriceApprovalButtons booking={booking} />
                   </div>
@@ -1628,74 +1951,137 @@ const BookingManagement: React.FC = () => {
                 )}
                 {selectedBooking.status === "Completed" &&
                   selectedBooking.finalCost && (
-                    <div className="p-4 bg-gradient-to-r from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl">
-                      <h4 className="text-lg font-semibold text-green-400 mb-4 flex items-center">
-                        <span className="mr-2">💳</span>
+                    <div className="p-6 bg-gray-900/50 rounded-2xl border border-green-500/30">
+                      <h4 className="text-xl font-bold text-green-400 mb-6 flex items-center">
+                        <span className="mr-3">💰</span>
                         Payment Information
                       </h4>
-                      <div className="mb-4">
-                        <div className="flex justify-between mb-2">
-                          <span className="text-gray-300">Amount:</span>
-                          <span className="text-amber-400 text-xl font-bold">
-                            RM {selectedBooking.finalCost.toFixed(2)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-300">Status:</span>
-                          <span
-                            className={`font-medium ${
+
+                      <div className="space-y-6">
+                        {/* Amount Summary */}
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
+                            <p className="text-gray-400 text-sm mb-2">
+                              Total Amount
+                            </p>
+                            <p className="text-amber-400 text-3xl font-bold">
+                              RM {selectedBooking.finalCost.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <div
+                            className={`p-4 rounded-xl border ${
                               selectedBooking.paymentStatus === "paid"
-                                ? "text-green-400"
+                                ? "bg-green-500/10 border-green-500/30"
                                 : selectedBooking.paymentStatus ===
                                   "partially_paid"
-                                ? "text-yellow-400"
-                                : "text-red-400"
+                                ? "bg-yellow-500/10 border-yellow-500/30"
+                                : "bg-red-500/10 border-red-500/30"
                             }`}
                           >
-                            {selectedBooking.paymentStatus === "paid"
-                              ? "✅ Paid"
-                              : selectedBooking.paymentStatus ===
-                                "partially_paid"
-                              ? "⏳ Partially Paid"
-                              : "💳 Payment Pending"}
-                          </span>
+                            <p className="text-gray-400 text-sm mb-2">
+                              Payment Status
+                            </p>
+                            <div className="flex items-center gap-2">
+                              {selectedBooking.paymentStatus === "paid" ? (
+                                <>
+                                  <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+                                  <span className="text-green-400 font-bold">
+                                    PAID
+                                  </span>
+                                </>
+                              ) : selectedBooking.paymentStatus ===
+                                "partially_paid" ? (
+                                <>
+                                  <div className="w-3 h-3 bg-yellow-500 rounded-full animate-pulse"></div>
+                                  <span className="text-yellow-400 font-bold">
+                                    PARTIAL
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
+                                  <span className="text-red-400 font-bold">
+                                    PENDING
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
+
+                        {/* Payment Breakdown */}
                         {selectedBooking.amountPaid &&
                           selectedBooking.amountPaid > 0 && (
-                            <div className="flex justify-between mt-1">
-                              <span className="text-gray-300">
-                                Amount Paid:
-                              </span>
-                              <span className="text-green-400">
-                                RM {selectedBooking.amountPaid.toFixed(2)}
-                              </span>
+                            <div className="bg-gray-800/30 p-4 rounded-xl">
+                              <div className="flex justify-between items-center mb-4">
+                                <span className="text-gray-300">
+                                  Amount Paid
+                                </span>
+                                <span className="text-green-400 text-xl font-bold">
+                                  RM {selectedBooking.amountPaid.toFixed(2)}
+                                </span>
+                              </div>
+                              {selectedBooking.balanceDue &&
+                                selectedBooking.balanceDue > 0 && (
+                                  <div className="flex justify-between items-center pt-4 border-t border-gray-700">
+                                    <span className="text-gray-300">
+                                      Balance Due
+                                    </span>
+                                    <span className="text-red-400 text-xl font-bold">
+                                      RM {selectedBooking.balanceDue.toFixed(2)}
+                                    </span>
+                                  </div>
+                                )}
                             </div>
                           )}
-                        {selectedBooking.balanceDue &&
-                          selectedBooking.balanceDue > 0 && (
-                            <div className="flex justify-between mt-1">
-                              <span className="text-gray-300">
-                                Balance Due:
-                              </span>
-                              <span className="text-red-400">
-                                RM {selectedBooking.balanceDue.toFixed(2)}
-                              </span>
-                            </div>
-                          )}
-                      </div>
 
-                      {selectedBooking.paymentStatus !== "paid" && (
-                        <div className="mt-4">
-                          <PaymentButton
-                            booking={selectedBooking}
-                            customerId={customerId}
-                            onPaymentSuccess={() => {
-                              handlePaymentSuccess();
-                              setSelectedBooking(null);
-                            }}
-                          />
+                        {/* Action Buttons */}
+                        <div className="flex gap-3">
+                          {/* Payment Button - only show if not fully paid */}
+                          {selectedBooking.paymentStatus !== "paid" && (
+                            <button
+                              onClick={() => {
+                                setIsPaymentModalOpen(true);
+                              }}
+                              className="flex-1 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+                            >
+                              <span>💳</span>
+                              {selectedBooking.paymentStatus ===
+                              "partially_paid"
+                                ? `Pay Balance RM ${selectedBooking.balanceDue?.toFixed(
+                                    2
+                                  )}`
+                                : `Pay RM ${selectedBooking.finalCost?.toFixed(
+                                    2
+                                  )}`}
+                            </button>
+                          )}
+
+                          {/* Print Receipt button - show if payment was made */}
+                          {(selectedBooking.paymentStatus === "paid" ||
+                            selectedBooking.paymentStatus ===
+                              "partially_paid") && (
+                            <button
+                              onClick={() =>
+                                handlePrintReceipt(selectedBooking)
+                              }
+                              className="flex-1 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105 flex items-center justify-center gap-2"
+                            >
+                              <span>📄</span>
+                              View & Print Receipt
+                            </button>
+                          )}
+
+                          {/* Close button */}
+                          <button
+                            onClick={() => setSelectedBooking(null)}
+                            className="px-4 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-all border border-gray-700"
+                          >
+                            Close
+                          </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 <div className="space-y-4">
@@ -1730,6 +2116,7 @@ const BookingManagement: React.FC = () => {
                     </div>
                   )}
                 </div>
+                {/* Replace the button section in the booking details modal */}
                 <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
                   {selectedBooking.status === "Completed" &&
                     selectedBooking.paymentStatus !== "paid" && (
@@ -1742,12 +2129,21 @@ const BookingManagement: React.FC = () => {
                         }}
                       />
                     )}
-                  <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
-                    Track Service Progress
-                  </button>
-                  <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
-                    Reschedule Booking
-                  </button>
+
+                  {/* Only show Track Service Progress button if service is not completed */}
+                  {selectedBooking.status !== "Completed" && (
+                    <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
+                      Track Service Progress
+                    </button>
+                  )}
+
+                  {/* Only show Reschedule button if booking is not completed */}
+                  {selectedBooking.status !== "Completed" && (
+                    <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 px-6 rounded-xl font-semibold transition-all border border-gray-700">
+                      Reschedule Booking
+                    </button>
+                  )}
+
                   {selectedBooking.status !== "Cancelled" &&
                     selectedBooking.status !== "Completed" &&
                     selectedBooking.status !== "Pending" && (
