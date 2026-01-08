@@ -1,64 +1,55 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../../../lib/prisma';
+// app/api/admin/payments/stats/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    // Get all payments
-    const payments = await prisma.payment.findMany({
-      select: {
-        amount: true,
-        status: true,
-        paymentDate: true,
-      },
-    });
-
-    // Calculate stats
-    const totalRevenue = payments
-      .filter(p => p.status === 'completed')
-      .reduce((sum: any, p: { amount: any; }) => sum + p.amount, 0);
-
-    const pendingPayments = payments.filter((p: { status: string; }) => p.status === 'pending').length;
-    const completedPayments = payments.filter((p: { status: string; }) => p.status === 'completed').length;
-    const failedPayments = payments.filter((p: { status: string; }) => p.status === 'failed').length;
-
-    // Monthly revenue (current month)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const monthlyRevenue = payments
-      .filter(p => 
-        p.status === 'completed' && 
-        p.paymentDate && 
-        p.paymentDate >= startOfMonth
-      )
-      .reduce((sum: any, p: { amount: any; }) => sum + p.amount, 0);
 
-    const averagePayment = completedPayments > 0 
-      ? totalRevenue / completedPayments 
-      : 0;
+    // Get all payments
+    const payments = await prisma.payment.findMany({
+      include: {
+        customer: true,
+        booking: true
+      }
+    });
+
+    // Calculate statistics
+    const totalRevenue = payments.reduce((sum, p) => sum + p.amount, 0);
+    
+    const monthlyPayments = payments.filter(p => 
+      p.paymentDate && p.paymentDate >= startOfMonth
+    );
+    const monthlyRevenue = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
+    
+    const pendingPayments = payments.filter(p => p.status === 'pending').length;
+    const completedPayments = payments.filter(p => p.status === 'completed').length;
+    const failedPayments = payments.filter(p => p.status === 'failed').length;
+    
+    const receiptsUploaded = payments.filter(p => p.receiptUrl).length;
+    const receiptsVerified = payments.filter(p => p.receiptVerified).length;
+    const receiptsPending = receiptsUploaded - receiptsVerified;
+
+    const averagePayment = payments.length > 0 ? totalRevenue / payments.length : 0;
 
     return NextResponse.json({
-      success: true,
       totalRevenue,
+      monthlyRevenue,
       pendingPayments,
       completedPayments,
       failedPayments,
-      monthlyRevenue,
+      receiptsUploaded,
+      receiptsVerified,
+      receiptsPending,
       averagePayment,
+      totalPayments: payments.length,
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error fetching payment stats:', error);
     return NextResponse.json(
-      {
-        success: false,
-        error: 'Failed to fetch payment stats',
-        totalRevenue: 0,
-        pendingPayments: 0,
-        completedPayments: 0,
-        failedPayments: 0,
-        monthlyRevenue: 0,
-        averagePayment: 0,
-      },
+      { success: false, error: error.message || 'Failed to fetch stats' },
       { status: 500 }
     );
   }

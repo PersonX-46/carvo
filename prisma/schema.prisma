@@ -90,21 +90,27 @@ model Vehicle {
   createdAt          DateTime  @default(now())
 }
 
+// prisma/schema.prisma
 model Payment {
-  id             Int       @id @default(autoincrement())
-  bookingId      Int       @unique
-  customerId     Int
-  amount         Float
-  status         String    @default("pending") // pending, processing, completed, failed, refunded
-  paymentMethod  String // credit_card, debit_card, online_banking, cash
-  transactionId  String?   @unique
-  paymentDate    DateTime?
-  completedDate  DateTime?
-  paymentDetails String?   @db.Text // Store payment gateway response or cash receipt details
-  customer       Customer  @relation(fields: [customerId], references: [id])
-  booking        Booking   @relation(fields: [bookingId], references: [id])
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              Int       @id @default(autoincrement())
+  bookingId       Int       @unique
+  customerId      Int
+  amount          Float
+  status          String    @default("pending")
+  paymentMethod   String
+  transactionId   String?   @unique
+  paymentDate     DateTime?
+  completedDate   DateTime?
+  paymentDetails  String?   @db.Text
+  receiptUrl      String?
+  receiptVerified Boolean   @default(false)
+  verifiedBy      String?
+  verifiedAt      DateTime?
+  rejectionReason String?
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  booking         Booking   @relation(fields: [bookingId], references: [id])
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 }
 
 model Booking {
@@ -114,7 +120,7 @@ model Booking {
   vehicleId        Int
   serviceId        Int?     @unique
   bookingDate      DateTime
-  status           String   @default("Pending") // Pending, Confirmed, In Progress, Completed, Cancelled, Price Pending, Price Rejected
+  status           String   @default("Pending")
   reportedIssue    String?
   estimatedCost    Float?
   estimatedMinCost Float?
@@ -128,14 +134,15 @@ model Booking {
   customer         Customer @relation(fields: [customerId], references: [id])
   vehicle          Vehicle  @relation(fields: [vehicleId], references: [id])
   service          Service?
-  paymentStatus    String?  @default("unpaid") // unpaid, pending, paid, partially_paid
+  paymentStatus    String?  @default("unpaid")
   amountPaid       Float?   @default(0.0)
   balanceDue       Float?   @default(0.0)
 
-  // Relations
-  payment   Payment?
+  payment Payment?
+
   createdAt DateTime @default(now())
 }
+
 model Stock {
   id              Int             @id @default(autoincrement())
   itemName        String
@@ -155,7 +162,7 @@ model Stock {
 model StockMovement {
   id          Int      @id @default(autoincrement())
   stockItemId Int
-  type        String // 'in' or 'out'
+  type        String
   quantity    Int
   reason      String
   date        DateTime @default(now())
@@ -167,7 +174,7 @@ model StockMovement {
 
 model Report {
   id          Int       @id @default(autoincrement())
-  type        String // financial, service, inventory, customer, worker
+  type        String
   title       String
   description String?
   dateRange   String?

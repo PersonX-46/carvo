@@ -1,117 +1,146 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '../../../../lib/prisma';
+// app/api/payments/create/route.ts
+import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const data = await request.json();
-    const { bookingId, amount, paymentMethod, paymentDetails, customerId } = data;
+    const body = await request.json();
+    const { 
+      bookingId, 
+      amount, 
+      paymentMethod, 
+      customerId, 
+      receiptUrl,
+      paymentDetails,
+      transactionId 
+    } = body;
 
-    // Validate input
-    if (!bookingId || !amount || !paymentMethod || !customerId) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
+    console.log('Processing payment for booking:', bookingId);
+    console.log('Amount:', amount);
+    console.log('Payment method:', paymentMethod);
+    console.log('Receipt URL:', receiptUrl);
 
     // Check if booking exists
-    const bookingExists = await prisma.booking.findUnique({
-      where: { id: parseInt(bookingId.toString()) },
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId }
     });
 
-    if (!bookingExists) {
+    if (!booking) {
       return NextResponse.json(
         { success: false, error: 'Booking not found' },
         { status: 404 }
       );
     }
 
-    console.log('Creating payment for booking:', bookingId);
-    console.log('Payment amount:', amount);
-    console.log('Payment method:', paymentMethod);
+    let payment;
 
-    // Use capital P - Payment (matching your Prisma schema)
-    const payment = await prisma.payment.create({
-      data: {
-        bookingId: parseInt(bookingId.toString()),
-        customerId: parseInt(customerId.toString()),
-        amount: parseFloat(amount.toString()),
-        paymentMethod: paymentMethod,
-        status: 'pending',
-        paymentDate: new Date(),
-        paymentDetails: JSON.stringify(paymentDetails || {}),
-      },
+    // Check if payment already exists
+    const existingPayment = await prisma.payment.findFirst({
+      where: { bookingId: bookingId }
     });
 
-    console.log('Payment created:', payment);
-
-    // Update booking payment status
-    const booking = await prisma.booking.findUnique({
-      where: { id: parseInt(bookingId.toString()) },
-      select: { amountPaid: true, finalCost: true }
-    });
-
-    const currentPaid = booking?.amountPaid || 0;
-    const newAmountPaid = currentPaid + parseFloat(amount.toString());
-    const finalCost = booking?.finalCost || parseFloat(amount.toString());
-    const balanceDue = finalCost - newAmountPaid;
-
-    // Determine payment status
-    let paymentStatus = 'partially_paid';
-    if (Math.abs(balanceDue) < 0.01) {
-      paymentStatus = 'paid';
-    } else if (newAmountPaid === 0) {
-      paymentStatus = 'unpaid';
+    // Prepare payment details
+    let finalPaymentDetails = paymentDetails || {};
+    
+    // If receipt URL is provided, use it
+    let finalReceiptUrl = receiptUrl;
+    if (receiptUrl && !finalReceiptUrl) {
+      finalReceiptUrl = receiptUrl;
     }
 
-    console.log('Updating booking payment status:', {
-      currentPaid,
-      newAmountPaid,
-      finalCost,
-      balanceDue,
-      paymentStatus
-    });
+    if (existingPayment) {
+      // Update existing payment
+      payment = await prisma.payment.update({
+        where: { id: existingPayment.id },
+        data: {
+          amount: parseFloat(amount),
+          paymentMethod: paymentMethod,
+          status: 'completed',
+          transactionId: transactionId,
+          paymentDate: new Date(),
+          completedDate: new Date(),
+          receiptUrl: finalReceiptUrl || existingPayment.receiptUrl,
+          paymentDetails: JSON.stringify(finalPaymentDetails),
+          updatedAt: new Date(),
+        }
+      });
+      console.log('Updated existing payment:', payment.id);
+    } else {
+      // Create new payment
+      payment = await prisma.payment.create({
+        data: {
+          bookingId: bookingId,
+          customerId: customerId,
+          amount: parseFloat(amount),
+          paymentMethod: paymentMethod,
+          status: 'completed',
+          transactionId: transactionId,
+          paymentDate: new Date(),
+          completedDate: new Date(),
+          receiptUrl: finalReceiptUrl,
+          paymentDetails: JSON.stringify(finalPaymentDetails),
+        }
+      });
+      console.log('Created new payment:', payment.id);
+    }
 
-    // Update booking
-    await prisma.booking.update({
-      where: { id: parseInt(bookingId.toString()) },
+    // Calculate payment status for booking
+    const totalPaid = (booking.amountPaid || 0) + parseFloat(amount);
+    const finalCost = booking.finalCost || 0;
+    const balanceDue = Math.max(0, finalCost - totalPaid);
+    
+    let paymentStatus = 'unpaid';
+    if (balanceDue === 0 && finalCost > 0) {
+      paymentStatus = 'paid';
+    } else if (totalPaid > 0) {
+      paymentStatus = 'partially_paid';
+    }
+
+    // Update booking payment status
+    const updatedBooking = await prisma.booking.update({
+      where: { id: bookingId },
       data: {
         paymentStatus: paymentStatus,
-        amountPaid: newAmountPaid,
-        balanceDue: Math.max(0, balanceDue),
-      },
-    });
-
-    // Simulate payment processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Mark payment as completed
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
-        status: 'completed',
-        completedDate: new Date(),
-        transactionId: `TRX-${Date.now()}-${payment.id}`,
-      },
+        amountPaid: totalPaid,
+        balanceDue: balanceDue,
+      }
     });
 
     return NextResponse.json({
       success: true,
-      transactionId: `TRX-${Date.now()}-${payment.id}`,
-      paymentId: payment.id,
-      message: 'Payment processed successfully',
+      payment: {
+        id: payment.id,
+        transactionId: payment.transactionId,
+        amount: payment.amount,
+        status: payment.status,
+        paymentMethod: payment.paymentMethod,
+        paymentDate: payment.paymentDate,
+        receiptUrl: payment.receiptUrl,
+        receiptVerified: payment.receiptVerified,
+        paymentDetails: payment.paymentDetails ? JSON.parse(payment.paymentDetails) : null,
+      },
+      booking: {
+        id: updatedBooking.id,
+        paymentStatus: updatedBooking.paymentStatus,
+        amountPaid: updatedBooking.amountPaid,
+        balanceDue: updatedBooking.balanceDue,
+        finalCost: updatedBooking.finalCost,
+      }
     });
 
-  } catch (error) {
-    console.error('Error processing payment:', error);
-    
-    return NextResponse.json(
-      {
+  } catch (error: any) {
+    console.error('Payment processing error:', error);
+
+    if (error.code === 'P2002') {
+      return NextResponse.json({
         success: false,
-        error: error instanceof Error ? error.message : 'Payment processing failed',
-        details: error instanceof Error ? error.stack : 'Unknown error',
-      },
-      { status: 500 }
-    );
+        error: 'Payment record already exists for this booking'
+      }, { status: 400 });
+    }
+
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Payment processing failed'
+    }, { status: 500 });
   }
 }

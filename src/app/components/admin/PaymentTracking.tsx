@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import ReceiptGenerator from "./ReceiptGenerator";
+import { Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, FileText, Printer, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
 
 interface PaymentRecord {
   id: number;
@@ -11,11 +11,22 @@ interface PaymentRecord {
   registrationNumber: string;
   amount: number;
   paymentMethod: string;
-  status: string; // pending, processing, completed, failed, refunded
+  status: "pending" | "processing" | "completed" | "failed" | "refunded";
   transactionId: string | null;
   paymentDate: string;
   completedDate: string | null;
   paymentDetails: string | null;
+  receiptUrl?: string;
+  uploadedReceipt?: {
+    url: string;
+    fileName: string;
+    fileType: string;
+    uploadedAt: string;
+    verified: boolean;
+    verifiedBy?: string;
+    verifiedAt?: string;
+    rejectionReason?: string;
+  };
 }
 
 interface PaymentStats {
@@ -25,19 +36,16 @@ interface PaymentStats {
   failedPayments: number;
   monthlyRevenue: number;
   averagePayment: number;
+  receiptsUploaded: number;
+  receiptsVerified: number;
+  receiptsPending: number;
 }
 
-type PaymentFilter =
-  | "all"
-  | "pending"
-  | "completed"
-  | "failed"
-  | "refunded"
-  | "today";
-
+type PaymentFilter = "all" | "pending" | "completed" | "failed" | "refunded" | "has_receipt" | "no_receipt";
 type TimeFilter = "today" | "week" | "month" | "year" | "all";
 
 const PaymentTracking: React.FC = () => {
+  // State
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [filteredPayments, setFilteredPayments] = useState<PaymentRecord[]>([]);
   const [stats, setStats] = useState<PaymentStats>({
@@ -47,18 +55,22 @@ const PaymentTracking: React.FC = () => {
     failedPayments: 0,
     monthlyRevenue: 0,
     averagePayment: 0,
+    receiptsUploaded: 0,
+    receiptsVerified: 0,
+    receiptsPending: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<PaymentFilter>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("month");
-  const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(
-    null
-  );
   const [searchQuery, setSearchQuery] = useState("");
-  const [showReceipt, setShowReceipt] = useState(false);
-  const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] =
-    useState<PaymentRecord | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null);
+  
+  // Receipt viewer state
+  const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
+  const [receiptZoom, setReceiptZoom] = useState(1);
+  const [receiptRotation, setReceiptRotation] = useState(0);
+  const [isVerifyingReceipt, setIsVerifyingReceipt] = useState(false);
 
   // Fetch payment data
   const fetchPaymentData = async () => {
@@ -90,17 +102,27 @@ const PaymentTracking: React.FC = () => {
     }
   };
 
+  // Load initial data
   useEffect(() => {
     fetchPaymentData();
   }, [timeFilter]);
 
-  // Apply filters
+  // Apply filters and search
   useEffect(() => {
     let result = payments;
 
     // Apply status filter
     if (filter !== "all") {
-      result = result.filter((payment) => payment.status === filter);
+      switch (filter) {
+        case "has_receipt":
+          result = result.filter((payment) => payment.uploadedReceipt);
+          break;
+        case "no_receipt":
+          result = result.filter((payment) => !payment.uploadedReceipt);
+          break;
+        default:
+          result = result.filter((payment) => payment.status === filter);
+      }
     }
 
     // Apply search query
@@ -119,24 +141,7 @@ const PaymentTracking: React.FC = () => {
     setFilteredPayments(result);
   }, [payments, filter, searchQuery]);
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-MY", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
+  // Format helpers
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-MY", {
       style: "currency",
@@ -145,63 +150,81 @@ const PaymentTracking: React.FC = () => {
     }).format(amount);
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-MY", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString("en-MY", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Status helpers
   const getStatusColor = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "pending":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      case "processing":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "failed":
-        return "bg-red-500/20 text-red-400 border-red-500/30";
-      case "refunded":
-        return "bg-purple-500/20 text-purple-400 border-purple-500/30";
-      default:
-        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
-    }
+    const colors: Record<string, string> = {
+      completed: "bg-green-500/20 text-green-400 border-green-500/30",
+      pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+      processing: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+      failed: "bg-red-500/20 text-red-400 border-red-500/30",
+      refunded: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+    };
+    return colors[status] || "bg-gray-500/20 text-gray-400 border-gray-500/30";
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "completed":
-        return "✅";
-      case "pending":
-        return "⏳";
-      case "processing":
-        return "🔄";
-      case "failed":
-        return "❌";
-      case "refunded":
-        return "💸";
-      default:
-        return "💰";
-    }
+    const icons: Record<string, string> = {
+      completed: "✅",
+      pending: "⏳",
+      processing: "🔄",
+      failed: "❌",
+      refunded: "💸",
+    };
+    return icons[status] || "💰";
   };
 
   const getPaymentMethodIcon = (method: string) => {
-    switch (method.toLowerCase()) {
-      case "credit_card":
-        return "💳";
-      case "debit_card":
-        return "💳";
-      case "online_banking":
-        return "🏦";
-      case "cash":
-        return "💵";
-      case "ewallet":
-        return "📱";
-      default:
-        return "💰";
-    }
+    const icons: Record<string, string> = {
+      credit_card: "💳",
+      debit_card: "💳",
+      online_banking: "🏦",
+      cash: "💵",
+      duitnow: "📱",
+      fpx: "🏦",
+      touchngo: "📲",
+      grabpay: "🚗",
+    };
+    return icons[method] || "💰";
   };
 
+  const getPaymentMethodName = (method: string) => {
+    const names: Record<string, string> = {
+      credit_card: "Credit Card",
+      debit_card: "Debit Card",
+      online_banking: "Online Banking",
+      cash: "Cash",
+      duitnow: "DuitNow",
+      fpx: "FPX",
+      touchngo: "Touch 'n Go",
+      grabpay: "GrabPay",
+    };
+    return names[method] || method.replace("_", " ").toUpperCase();
+  };
+
+  // Actions
   const handleRefresh = () => {
     fetchPaymentData();
   };
 
   const handleExportCSV = () => {
-    // Simple CSV export
     const headers = [
       "Transaction ID",
       "Customer",
@@ -210,7 +233,8 @@ const PaymentTracking: React.FC = () => {
       "Payment Method",
       "Status",
       "Payment Date",
-      "Completed Date",
+      "Receipt Status",
+      "Receipt Verified",
     ];
 
     const csvData = filteredPayments.map((payment) => [
@@ -218,14 +242,14 @@ const PaymentTracking: React.FC = () => {
       payment.customerName,
       `${payment.vehicleModel} (${payment.registrationNumber})`,
       payment.amount.toFixed(2),
-      payment.paymentMethod,
+      getPaymentMethodName(payment.paymentMethod),
       payment.status,
-      payment.paymentDate,
-      payment.completedDate || "N/A",
+      formatDateTime(payment.paymentDate),
+      payment.uploadedReceipt ? "Uploaded" : "No Receipt",
+      payment.uploadedReceipt?.verified ? "Yes" : "No",
     ]);
 
     const csv = [headers, ...csvData].map((row) => row.join(",")).join("\n");
-
     const blob = new Blob([csv], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -233,57 +257,88 @@ const PaymentTracking: React.FC = () => {
     a.download = `payments-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-
-    alert("CSV exported successfully!");
   };
 
-  const StatCard = ({ title, value, icon, color, subtitle }: any) => (
-    <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50 hover:border-amber-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-amber-500/5">
+  const handleVerifyReceipt = async (paymentId: number) => {
+    try {
+      setIsVerifyingReceipt(true);
+      const response = await fetch(`/api/admin/payments/${paymentId}/verify-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verified: true }),
+      });
+
+      if (response.ok) {
+        await fetchPaymentData();
+        alert("Receipt verified successfully!");
+      }
+    } catch (err) {
+      alert("Failed to verify receipt");
+    } finally {
+      setIsVerifyingReceipt(false);
+    }
+  };
+
+  const handleRejectReceipt = async (paymentId: number) => {
+    const reason = prompt("Please provide reason for rejecting this receipt:");
+    if (!reason) return;
+
+    try {
+      setIsVerifyingReceipt(true);
+      const response = await fetch(`/api/admin/payments/${paymentId}/reject-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          verified: false,
+          rejectionReason: reason,
+        }),
+      });
+
+      if (response.ok) {
+        await fetchPaymentData();
+        alert("Receipt rejected successfully!");
+      }
+    } catch (err) {
+      alert("Failed to reject receipt");
+    } finally {
+      setIsVerifyingReceipt(false);
+    }
+  };
+
+  const handleDownloadReceipt = (receiptUrl: string, fileName: string) => {
+    const link = document.createElement("a");
+    link.href = receiptUrl;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handlePrintReceipt = (receiptUrl: string) => {
+    const printWindow = window.open(receiptUrl, "_blank");
+    if (printWindow) {
+      printWindow.onload = () => {
+        printWindow.print();
+      };
+    }
+  };
+
+  // Components
+  const StatCard = ({ title, value, icon, color, subtitle, isLoading }: any) => (
+    <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-amber-500/30 transition-all duration-300">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-gray-400 text-sm mb-2">{title}</p>
-          <p className="text-3xl font-bold text-white mb-1">
-            {isLoading ? (
-              <div className="h-8 w-20 bg-gray-700 rounded animate-pulse"></div>
-            ) : (
-              value
-            )}
-          </p>
-          {subtitle && (
-            <p className="text-amber-400 text-xs font-medium">{subtitle}</p>
+          <p className="text-gray-400 text-sm mb-1">{title}</p>
+          {isLoading ? (
+            <div className="h-8 w-24 bg-gray-700 rounded animate-pulse"></div>
+          ) : (
+            <p className="text-2xl font-bold text-white mb-1">{value}</p>
           )}
+          {subtitle && <p className="text-amber-400 text-xs font-medium">{subtitle}</p>}
         </div>
-        <div className={`text-3xl p-3 rounded-xl bg-gray-700/50 ${color}`}>
-          {icon}
-        </div>
+        <div className={`text-2xl p-3 rounded-lg bg-gray-700/50 ${color}`}>{icon}</div>
       </div>
     </div>
-  );
-
-  const FilterBadge = ({ filterType, label, count }: any) => (
-    <button
-      onClick={() => setFilter(filterType)}
-      className={`px-4 py-2 rounded-xl font-medium transition-all ${
-        filter === filterType
-          ? "bg-amber-500 text-white shadow-lg shadow-amber-500/25"
-          : "bg-gray-800/80 text-gray-400 hover:bg-gray-700/80 hover:text-white"
-      }`}
-    >
-      {label} {count > 0 && `(${count})`}
-    </button>
-  );
-
-  const TimeFilterButton = ({ value, label }: any) => (
-    <button
-      onClick={() => setTimeFilter(value)}
-      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-        timeFilter === value
-          ? "bg-blue-500 text-white"
-          : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
-      }`}
-    >
-      {label}
-    </button>
   );
 
   const PaymentDetailsModal = () => {
@@ -297,7 +352,7 @@ const PaymentTracking: React.FC = () => {
               <h3 className="text-xl font-bold text-white">Payment Details</h3>
               <button
                 onClick={() => setSelectedPayment(null)}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-400 hover:text-white transition-colors text-2xl"
               >
                 ✕
               </button>
@@ -307,15 +362,11 @@ const PaymentTracking: React.FC = () => {
               {/* Payment Summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400">
-                    Payment Information
-                  </h4>
+                  <h4 className="text-lg font-semibold text-amber-400">Payment Information</h4>
                   <div className="space-y-3">
                     <div>
                       <p className="text-gray-400 text-sm">Transaction ID</p>
-                      <p className="text-white font-mono font-medium">
-                        {selectedPayment.transactionId || "N/A"}
-                      </p>
+                      <p className="text-white font-mono">{selectedPayment.transactionId || "N/A"}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Amount</p>
@@ -326,10 +377,8 @@ const PaymentTracking: React.FC = () => {
                     <div>
                       <p className="text-gray-400 text-sm">Payment Method</p>
                       <p className="text-white font-medium flex items-center gap-2">
-                        <span>
-                          {getPaymentMethodIcon(selectedPayment.paymentMethod)}
-                        </span>
-                        {selectedPayment.paymentMethod}
+                        <span>{getPaymentMethodIcon(selectedPayment.paymentMethod)}</span>
+                        {getPaymentMethodName(selectedPayment.paymentMethod)}
                       </p>
                     </div>
                     <div>
@@ -339,139 +388,166 @@ const PaymentTracking: React.FC = () => {
                           selectedPayment.status
                         )}`}
                       >
-                        <span className="mr-1">
-                          {getStatusIcon(selectedPayment.status)}
-                        </span>
-                        {selectedPayment.status}
+                        <span className="mr-1">{getStatusIcon(selectedPayment.status)}</span>
+                        {selectedPayment.status.toUpperCase()}
                       </span>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400">
-                    Customer & Vehicle
-                  </h4>
+                  <h4 className="text-lg font-semibold text-amber-400">Customer & Vehicle</h4>
                   <div className="space-y-3">
                     <div>
                       <p className="text-gray-400 text-sm">Customer</p>
-                      <p className="text-white font-medium">
-                        {selectedPayment.customerName}
-                      </p>
+                      <p className="text-white font-medium">{selectedPayment.customerName}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Vehicle</p>
-                      <p className="text-white font-medium">
-                        {selectedPayment.vehicleModel}
-                      </p>
+                      <p className="text-white font-medium">{selectedPayment.vehicleModel}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Registration</p>
-                      <p className="text-white font-medium">
-                        {selectedPayment.registrationNumber}
-                      </p>
+                      <p className="text-white font-medium">{selectedPayment.registrationNumber}</p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Booking ID</p>
-                      <p className="text-white font-medium">
-                        #{selectedPayment.bookingId}
-                      </p>
+                      <p className="text-white font-medium">#{selectedPayment.bookingId}</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Timeline */}
-              <div className="space-y-4">
-                <h4 className="text-lg font-semibold text-amber-400">
-                  Payment Timeline
-                </h4>
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                      <span className="text-green-400">💰</span>
-                    </div>
-                    <div>
-                      <p className="text-white font-medium">
-                        Payment Initiated
-                      </p>
-                      <p className="text-gray-400 text-sm">
-                        {formatDate(selectedPayment.paymentDate)} at{" "}
-                        {formatTime(selectedPayment.paymentDate)}
-                      </p>
-                    </div>
-                  </div>
-
-                  {selectedPayment.completedDate && (
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                        <span className="text-green-400">✅</span>
-                      </div>
-                      <div>
-                        <p className="text-white font-medium">
-                          Payment Completed
-                        </p>
-                        <p className="text-gray-400 text-sm">
-                          {formatDate(selectedPayment.completedDate)} at{" "}
-                          {formatTime(selectedPayment.completedDate)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Payment Details */}
-              {selectedPayment.paymentDetails && (
-                <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400">
-                    Payment Details
+              {/* Receipt Section */}
+              {selectedPayment.uploadedReceipt && (
+                <div className="space-y-4 pt-4 border-t border-gray-800">
+                  <h4 className="text-lg font-semibold text-amber-400 flex items-center gap-2">
+                    <FileText className="w-5 h-5" />
+                    Uploaded Receipt
                   </h4>
+                  
                   <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
-                    <pre className="text-gray-300 text-sm whitespace-pre-wrap">
-                      {JSON.stringify(
-                        JSON.parse(selectedPayment.paymentDetails),
-                        null,
-                        2
-                      )}
-                    </pre>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500/20 rounded-lg flex items-center justify-center">
+                          <span className="text-xl">📎</span>
+                        </div>
+                        <div>
+                          <p className="text-white font-medium">
+                            {selectedPayment.uploadedReceipt.fileName}
+                          </p>
+                          <p className="text-gray-400 text-sm">
+                            {selectedPayment.uploadedReceipt.fileType} • Uploaded: {formatDateTime(selectedPayment.uploadedReceipt.uploadedAt)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end">
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium mb-2 ${
+                            selectedPayment.uploadedReceipt.verified
+                              ? "bg-green-500/20 text-green-400"
+                              : "bg-yellow-500/20 text-yellow-400"
+                          }`}
+                        >
+                          {selectedPayment.uploadedReceipt.verified ? (
+                            <>
+                              <CheckCircle className="w-3 h-3 mr-1" />
+                              Verified
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="w-3 h-3 mr-1" />
+                              Pending
+                            </>
+                          )}
+                        </span>
+                        {selectedPayment.uploadedReceipt.verifiedBy && (
+                          <p className="text-gray-400 text-xs">
+                            By: {selectedPayment.uploadedReceipt.verifiedBy}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setSelectedReceipt(selectedPayment)}
+                        className="flex-1 bg-blue-500 hover:bg-blue-600 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Receipt
+                      </button>
+                      <button
+                        onClick={() => handleDownloadReceipt(
+                          selectedPayment.uploadedReceipt!.url,
+                          selectedPayment.uploadedReceipt!.fileName
+                        )}
+                        className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-lg font-medium transition-colors border border-gray-700 flex items-center justify-center gap-2"
+                      >
+                        <Download className="w-4 h-4" />
+                        Download
+                      </button>
+                    </div>
+
+                    {/* Receipt Management */}
+                    {!selectedPayment.uploadedReceipt.verified && (
+                      <div className="mt-4 pt-4 border-t border-gray-700">
+                        <h5 className="text-white font-semibold mb-3">Receipt Verification</h5>
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleVerifyReceipt(selectedPayment.id)}
+                            disabled={isVerifyingReceipt}
+                            className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            {isVerifyingReceipt ? "Processing..." : "Verify Receipt"}
+                          </button>
+                          <button
+                            onClick={() => handleRejectReceipt(selectedPayment.id)}
+                            disabled={isVerifyingReceipt}
+                            className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Reject Receipt
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rejection Reason */}
+                    {selectedPayment.uploadedReceipt.rejectionReason && (
+                      <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                        <p className="text-red-400 text-sm">
+                          <strong>Rejection Reason:</strong> {selectedPayment.uploadedReceipt.rejectionReason}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* Actions */}
+              {/* No Receipt Notice */}
+              {!selectedPayment.uploadedReceipt && (
+                <div className="p-4 bg-gray-800/30 rounded-xl border border-gray-700">
+                  <div className="text-center">
+                    <div className="text-gray-400 text-4xl mb-3">📄</div>
+                    <p className="text-gray-300">No receipt uploaded for this payment</p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Customer needs to upload receipt after payment
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
               <div className="flex gap-3 pt-6 border-t border-gray-800">
-                <button
-                  onClick={() => {
-                    // Mark as completed
-                    // Implement your API call here
-                    alert(`Marking payment ${selectedPayment.id} as completed`);
-                    setSelectedPayment(null);
-                  }}
-                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-all"
-                >
-                  ✅ Mark as Completed
-                </button>
-                <button
-                  onClick={() => {
-                    // Refund payment
-                    // Implement your API call here
-                    alert(`Refunding payment ${selectedPayment.id}`);
-                    setSelectedPayment(null);
-                  }}
-                  className="flex-1 bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-xl font-semibold transition-all"
-                >
-                  💸 Process Refund
-                </button>
-                <button
-                  onClick={() => {
-                    setSelectedPaymentForReceipt(selectedPayment);
-                    setShowReceipt(true);
-                  }}
-                  className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-all border border-gray-700 flex items-center justify-center gap-2"
-                >
-                  <span>🧾</span>
-                  Generate Receipt
+                {selectedPayment.status === "pending" && (
+                  <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-colors">
+                    ✅ Mark as Completed
+                  </button>
+                )}
+                <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-colors border border-gray-700">
+                  🧾 Generate Invoice
                 </button>
               </div>
             </div>
@@ -481,17 +557,169 @@ const PaymentTracking: React.FC = () => {
     );
   };
 
-  if (error) {
+  const ReceiptViewerModal = () => {
+    if (!selectedReceipt || !selectedReceipt.uploadedReceipt) return null;
+
+    const receipt = selectedReceipt.uploadedReceipt;
+    const isImage = receipt.fileType.startsWith("image/");
+    const isPDF = receipt.fileType === "application/pdf";
+
     return (
-      <div className="flex justify-center items-center py-12">
-        <div className="text-center">
-          <div className="text-red-400 text-lg mb-4">⚠️ {error}</div>
-          <button
-            onClick={handleRefresh}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+        <div className="bg-gray-900 rounded-2xl border border-amber-500/30 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-800 flex justify-between items-center">
+            <div>
+              <h3 className="text-xl font-bold text-white">Receipt Viewer</h3>
+              <p className="text-gray-400 text-sm">
+                {selectedReceipt.customerName} • {formatDate(selectedReceipt.paymentDate)} •{" "}
+                {formatCurrency(selectedReceipt.amount)}
+              </p>
+            </div>
+            <button
+              onClick={() => setSelectedReceipt(null)}
+              className="text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-gray-800"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Toolbar */}
+          <div className="p-3 border-b border-gray-800 bg-gray-800/30 flex items-center gap-3">
+            <button
+              onClick={() => setReceiptZoom(receiptZoom + 0.1)}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setReceiptZoom(Math.max(0.5, receiptZoom - 0.1))}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => setReceiptRotation((receiptRotation + 90) % 360)}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
+              title="Rotate"
+            >
+              <RotateCw className="w-5 h-5" />
+            </button>
+            <div className="flex-1 text-center text-sm text-gray-400">
+              Zoom: {Math.round(receiptZoom * 100)}% • {receipt.fileName}
+            </div>
+            <button
+              onClick={() => handlePrintReceipt(receipt.url)}
+              className="p-2 bg-blue-500 hover:bg-blue-600 rounded-lg text-white flex items-center gap-2"
+            >
+              <Printer className="w-5 h-5" />
+              Print
+            </button>
+            <button
+              onClick={() => handleDownloadReceipt(receipt.url, receipt.fileName)}
+              className="p-2 bg-green-500 hover:bg-green-600 rounded-lg text-white flex items-center gap-2"
+            >
+              <Download className="w-5 h-5" />
+              Download
+            </button>
+          </div>
+
+          {/* Receipt Content */}
+          <div className="flex-1 overflow-auto p-4 bg-gray-800/20">
+            <div className="flex justify-center items-center min-h-[400px]">
+              {isImage ? (
+                <div
+                  className="bg-white rounded-lg shadow-2xl overflow-hidden"
+                  style={{
+                    transform: `scale(${receiptZoom}) rotate(${receiptRotation}deg)`,
+                    transition: "transform 0.2s ease",
+                  }}
+                >
+                  <img
+                    src={receipt.url}
+                    alt="Receipt"
+                    className="max-w-full max-h-[70vh] object-contain"
+                  />
+                </div>
+              ) : isPDF ? (
+                <iframe
+                  src={receipt.url}
+                  className="w-full h-[70vh] rounded-lg border border-gray-700"
+                  title="Receipt PDF"
+                />
+              ) : (
+                <div className="text-center p-8">
+                  <div className="text-gray-400 text-6xl mb-4">📄</div>
+                  <p className="text-gray-300">Preview not available for this file type</p>
+                  <p className="text-gray-400 text-sm mt-2">File type: {receipt.fileType}</p>
+                  <button
+                    onClick={() => handleDownloadReceipt(receipt.url, receipt.fileName)}
+                    className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
+                  >
+                    Download File
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="p-4 border-t border-gray-800 bg-gray-900/50">
+            <div className="flex justify-between items-center">
+              <div className="text-sm text-gray-400">
+                <p>
+                  Uploaded: {formatDateTime(receipt.uploadedAt)} •{" "}
+                  Status: {receipt.verified ? (
+                    <span className="text-green-400">✅ Verified</span>
+                  ) : (
+                    <span className="text-yellow-400">⏳ Pending</span>
+                  )}
+                </p>
+              </div>
+              {!receipt.verified && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleVerifyReceipt(selectedReceipt.id)}
+                    disabled={isVerifyingReceipt}
+                    className="px-4 py-2 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white rounded-lg font-medium"
+                  >
+                    {isVerifyingReceipt ? "Processing..." : "✅ Verify Receipt"}
+                  </button>
+                  <button
+                    onClick={() => handleRejectReceipt(selectedReceipt.id)}
+                    disabled={isVerifyingReceipt}
+                    className="px-4 py-2 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white rounded-lg font-medium"
+                  >
+                    ❌ Reject Receipt
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Payment Tracking</h2>
+            <p className="text-gray-400">Loading payment data...</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-gray-800/50 rounded-xl p-5 border border-gray-700 animate-pulse">
+              <div className="h-4 bg-gray-700 rounded w-24 mb-4"></div>
+              <div className="h-8 bg-gray-700 rounded w-32 mb-2"></div>
+            </div>
+          ))}
         </div>
       </div>
     );
@@ -500,37 +728,25 @@ const PaymentTracking: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Payment Tracking</h2>
-          <p className="text-gray-400">
-            Monitor and manage all customer payments
-          </p>
+          <p className="text-gray-400">Monitor customer payments and receipt verifications</p>
         </div>
         <div className="flex gap-3">
           <button
             onClick={handleExportCSV}
-            className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-xl font-medium transition-colors border border-gray-700 flex items-center space-x-2"
+            className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2.5 rounded-xl font-medium transition-colors border border-gray-700 flex items-center gap-2"
           >
-            <span>📥</span>
-            <span>Export CSV</span>
+            <Download className="w-4 h-4" />
+            Export CSV
           </button>
           <button
             onClick={handleRefresh}
-            disabled={isLoading}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2 rounded-xl font-medium transition-all transform hover:scale-105 disabled:opacity-50 flex items-center space-x-2"
+            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-4 py-2.5 rounded-xl font-medium transition-all flex items-center gap-2"
           >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Loading...</span>
-              </>
-            ) : (
-              <>
-                <span>🔄</span>
-                <span>Refresh</span>
-              </>
-            )}
+            <span>🔄</span>
+            Refresh
           </button>
         </div>
       </div>
@@ -540,23 +756,31 @@ const PaymentTracking: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-lg font-semibold text-white">Time Period</h3>
           <div className="flex flex-wrap gap-2">
-            <TimeFilterButton value="today" label="Today" />
-            <TimeFilterButton value="week" label="This Week" />
-            <TimeFilterButton value="month" label="This Month" />
-            <TimeFilterButton value="year" label="This Year" />
-            <TimeFilterButton value="all" label="All Time" />
+            {(["today", "week", "month", "year", "all"] as TimeFilter[]).map((period) => (
+              <button
+                key={period}
+                onClick={() => setTimeFilter(period)}
+                className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  timeFilter === period
+                    ? "bg-blue-500 text-white"
+                    : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+                }`}
+              >
+                {period.charAt(0).toUpperCase() + period.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <StatCard
           title="Total Revenue"
           value={formatCurrency(stats.totalRevenue)}
           icon="💰"
           color="text-green-400"
-          subtitle={`${filteredPayments.length} payments`}
+          subtitle={`${payments.length} payments`}
         />
         <StatCard
           title="Monthly Revenue"
@@ -564,13 +788,6 @@ const PaymentTracking: React.FC = () => {
           icon="📅"
           color="text-blue-400"
           subtitle="Current month"
-        />
-        <StatCard
-          title="Average Payment"
-          value={formatCurrency(stats.averagePayment)}
-          icon="📊"
-          color="text-purple-400"
-          subtitle="Per transaction"
         />
         <StatCard
           title="Completed"
@@ -587,11 +804,32 @@ const PaymentTracking: React.FC = () => {
           subtitle="Awaiting processing"
         />
         <StatCard
-          title="Failed"
-          value={stats.failedPayments}
-          icon="❌"
-          color="text-red-400"
-          subtitle="Requires attention"
+          title="Receipts Uploaded"
+          value={stats.receiptsUploaded}
+          icon="📄"
+          color="text-blue-400"
+          subtitle="Customer uploaded"
+        />
+        <StatCard
+          title="Receipts Verified"
+          value={stats.receiptsVerified}
+          icon="✅"
+          color="text-green-400"
+          subtitle="Verified by admin"
+        />
+        <StatCard
+          title="Receipts Pending"
+          value={stats.receiptsPending}
+          icon="⏳"
+          color="text-yellow-400"
+          subtitle="Awaiting verification"
+        />
+        <StatCard
+          title="Average Payment"
+          value={formatCurrency(stats.averagePayment)}
+          icon="📊"
+          color="text-purple-400"
+          subtitle="Per transaction"
         />
       </div>
 
@@ -601,49 +839,79 @@ const PaymentTracking: React.FC = () => {
           {/* Search */}
           <div className="flex-1">
             <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search by customer, vehicle, or transaction ID..."
+                placeholder="Search payments by customer, vehicle, or transaction ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full px-4 py-3 pl-12 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-amber-500"
+                className="w-full pl-12 pr-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-amber-500"
               />
-              <div className="absolute left-4 top-3.5 text-gray-400">🔍</div>
             </div>
           </div>
 
           {/* Status Filters */}
           <div className="flex flex-wrap gap-2">
-            <FilterBadge
-              filterType="all"
-              label="All Payments"
-              count={payments.length}
-            />
-            <FilterBadge
-              filterType="completed"
-              label="Completed"
-              count={payments.filter((p) => p.status === "completed").length}
-            />
-            <FilterBadge
-              filterType="pending"
-              label="Pending"
-              count={payments.filter((p) => p.status === "pending").length}
-            />
-            <FilterBadge
-              filterType="processing"
-              label="Processing"
-              count={payments.filter((p) => p.status === "processing").length}
-            />
-            <FilterBadge
-              filterType="failed"
-              label="Failed"
-              count={payments.filter((p) => p.status === "failed").length}
-            />
-            <FilterBadge
-              filterType="refunded"
-              label="Refunded"
-              count={payments.filter((p) => p.status === "refunded").length}
-            />
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "all"
+                  ? "bg-amber-500 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              All Payments
+            </button>
+            <button
+              onClick={() => setFilter("completed")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "completed"
+                  ? "bg-green-500 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              Completed
+            </button>
+            <button
+              onClick={() => setFilter("has_receipt")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "has_receipt"
+                  ? "bg-blue-500 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              With Receipt
+            </button>
+            <button
+              onClick={() => setFilter("no_receipt")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "no_receipt"
+                  ? "bg-gray-600 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              No Receipt
+            </button>
+            <button
+              onClick={() => setFilter("pending")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "pending"
+                  ? "bg-yellow-500 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              Pending
+            </button>
+            <button
+              onClick={() => setFilter("failed")}
+              className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                filter === "failed"
+                  ? "bg-red-500 text-white"
+                  : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+              }`}
+            >
+              Failed
+            </button>
           </div>
         </div>
       </div>
@@ -652,63 +920,32 @@ const PaymentTracking: React.FC = () => {
       <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-700/50">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead>
-              <tr className="bg-gray-900/80 border-b border-gray-700/50">
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Transaction
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Customer & Vehicle
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Amount
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Method
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Status
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Date
-                </th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">
-                  Actions
-                </th>
+            <thead className="bg-gray-900/80">
+              <tr className="border-b border-gray-700/50">
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Transaction</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Customer & Vehicle</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Amount</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Method</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Status</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Receipt</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Date</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading ? (
-                // Loading skeleton
-                Array.from({ length: 5 }).map((_, index) => (
-                  <tr key={index} className="border-b border-gray-700/30">
-                    <td className="py-4 px-6">
-                      <div className="h-4 bg-gray-700 rounded w-32 animate-pulse"></div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="space-y-2">
-                        <div className="h-4 bg-gray-700 rounded w-24 animate-pulse"></div>
-                        <div className="h-3 bg-gray-700 rounded w-20 animate-pulse"></div>
-                      </div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="h-4 bg-gray-700 rounded w-16 animate-pulse"></div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="h-4 bg-gray-700 rounded w-20 animate-pulse"></div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="h-6 bg-gray-700 rounded w-20 animate-pulse"></div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="h-4 bg-gray-700 rounded w-24 animate-pulse"></div>
-                    </td>
-                    <td className="py-4 px-6">
-                      <div className="h-8 bg-gray-700 rounded w-20 animate-pulse"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : filteredPayments.length > 0 ? (
+              {filteredPayments.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-12 text-center">
+                    <div className="text-gray-400 text-4xl mb-3">📭</div>
+                    <p className="text-gray-400 text-lg">No payments found</p>
+                    {searchQuery && (
+                      <p className="text-gray-500 mt-1">
+                        No results for "{searchQuery}"
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              ) : (
                 filteredPayments.map((payment) => (
                   <tr
                     key={payment.id}
@@ -719,18 +956,19 @@ const PaymentTracking: React.FC = () => {
                         <p className="text-white font-medium">
                           {payment.transactionId || "N/A"}
                         </p>
-                        <p className="text-gray-400 text-sm">
+                        <p className="text-gray-400 text-xs">
                           Booking #{payment.bookingId}
                         </p>
                       </div>
                     </td>
                     <td className="py-4 px-6">
                       <div>
-                        <p className="text-white font-medium">
-                          {payment.customerName}
-                        </p>
+                        <p className="text-white font-medium">{payment.customerName}</p>
                         <p className="text-gray-400 text-sm">
-                          {payment.vehicleModel} ({payment.registrationNumber})
+                          {payment.vehicleModel}
+                        </p>
+                        <p className="text-gray-500 text-xs font-mono">
+                          {payment.registrationNumber}
                         </p>
                       </div>
                     </td>
@@ -741,11 +979,11 @@ const PaymentTracking: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-2">
-                        <span>
+                        <span className="text-xl">
                           {getPaymentMethodIcon(payment.paymentMethod)}
                         </span>
-                        <span className="text-white">
-                          {payment.paymentMethod.replace("_", " ")}
+                        <span className="text-white text-sm">
+                          {getPaymentMethodName(payment.paymentMethod)}
                         </span>
                       </div>
                     </td>
@@ -755,11 +993,25 @@ const PaymentTracking: React.FC = () => {
                           payment.status
                         )}`}
                       >
-                        <span className="mr-1">
-                          {getStatusIcon(payment.status)}
-                        </span>
-                        {payment.status}
+                        <span className="mr-1">{getStatusIcon(payment.status)}</span>
+                        {payment.status.toUpperCase()}
                       </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      {payment.uploadedReceipt ? (
+                        <div className="flex items-center gap-2">
+                          {payment.uploadedReceipt.verified ? (
+                            <CheckCircle className="w-5 h-5 text-green-400" />
+                          ) : (
+                            <Clock className="w-5 h-5 text-yellow-400" />
+                          )}
+                          <span className="text-sm text-gray-300">
+                            {payment.uploadedReceipt.verified ? "Verified" : "Pending"}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500 text-sm">No receipt</span>
+                      )}
                     </td>
                     <td className="py-4 px-6">
                       <div>
@@ -767,91 +1019,73 @@ const PaymentTracking: React.FC = () => {
                           {formatDate(payment.paymentDate)}
                         </p>
                         <p className="text-gray-400 text-xs">
-                          {formatTime(payment.paymentDate)}
+                          {new Date(payment.paymentDate).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </p>
                       </div>
                     </td>
                     <td className="py-4 px-6">
-                      <button
-                        onClick={() => setSelectedPayment(payment)}
-                        className="bg-gray-800 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors border border-gray-700"
-                      >
-                        View Details
-                      </button>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedPayment(payment)}
+                          className="p-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors border border-gray-700"
+                          title="View Details"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {payment.uploadedReceipt && (
+                          <button
+                            onClick={() => setSelectedReceipt(payment)}
+                            className="p-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                            title="View Receipt"
+                          >
+                            <FileText className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="py-12 text-center">
-                    <div className="text-gray-400 text-xl mb-2">📭</div>
-                    <p className="text-gray-400">
-                      No payments found{searchQuery && ` for "${searchQuery}"`}
-                    </p>
-                    {searchQuery && (
-                      <button
-                        onClick={() => setSearchQuery("")}
-                        className="mt-2 text-amber-400 hover:text-amber-300 text-sm"
-                      >
-                        Clear search
-                      </button>
-                    )}
-                  </td>
-                </tr>
               )}
             </tbody>
           </table>
         </div>
 
-        {/* Pagination/Info */}
-        <div className="p-4 border-t border-gray-700/50 flex justify-between items-center">
-          <p className="text-gray-400 text-sm">
-            Showing{" "}
-            <span className="text-white font-medium">
-              {filteredPayments.length}
-            </span>{" "}
-            of <span className="text-white font-medium">{payments.length}</span>{" "}
-            payments
-          </p>
-          <div className="flex gap-2">
-            <button className="px-3 py-1.5 bg-gray-800/50 text-gray-400 rounded-lg text-sm hover:bg-gray-700/50 hover:text-white transition-colors disabled:opacity-50">
-              ← Previous
-            </button>
-            <button className="px-3 py-1.5 bg-gray-800/50 text-gray-400 rounded-lg text-sm hover:bg-gray-700/50 hover:text-white transition-colors disabled:opacity-50">
-              Next →
-            </button>
+        {/* Footer */}
+        {filteredPayments.length > 0 && (
+          <div className="p-4 border-t border-gray-700/50 flex justify-between items-center">
+            <p className="text-gray-400 text-sm">
+              Showing <span className="text-white font-medium">{filteredPayments.length}</span>{" "}
+              of <span className="text-white font-medium">{payments.length}</span> payments
+            </p>
+            <div className="text-sm text-gray-400">
+              Total: {formatCurrency(filteredPayments.reduce((sum, p) => sum + p.amount, 0))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Payment Details Modal */}
+      {/* Modals */}
       <PaymentDetailsModal />
-      {/* Receipt Generator Modal */}
-      {showReceipt && selectedPaymentForReceipt && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-900 rounded-2xl border border-amber-500/30 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-bold text-white">
-                  Generate Receipt
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowReceipt(false);
-                    setSelectedPaymentForReceipt(null);
-                  }}
-                  className="text-gray-400 hover:text-white transition-colors text-2xl"
-                >
-                  ✕
-                </button>
-              </div>
-              <ReceiptGenerator
-                payment={selectedPaymentForReceipt}
-                onClose={() => {
-                  setShowReceipt(false);
-                  setSelectedPaymentForReceipt(null);
-                }}
-              />
+      <ReceiptViewerModal />
+
+      {/* Error Display */}
+      {error && (
+        <div className="fixed bottom-4 right-4 p-4 bg-red-500/20 border border-red-500/30 rounded-xl backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+              <span className="text-red-400">⚠️</span>
+            </div>
+            <div>
+              <p className="text-red-400 font-medium">{error}</p>
+              <button
+                onClick={handleRefresh}
+                className="text-red-300 hover:text-red-200 text-sm mt-1"
+              >
+                Try Again
+              </button>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import PaymentButton from "@/app/components/customer/PaymentButton";
+import PaymentSystem from "./PaymentSystem";
 
 interface ServiceBooking {
   id: number;
@@ -83,22 +84,32 @@ type BookingFilter =
 const BookingManagement: React.FC = () => {
   const [bookings, setBookings] = useState<ServiceBooking[]>([]);
   const [vehicles, setVehicles] = useState<CustomerVehicle[]>([]);
-  const [selectedBooking, setSelectedBooking] = useState<ServiceBooking | null>(null);
+  const [selectedBooking, setSelectedBooking] = useState<ServiceBooking | null>(
+    null
+  );
   const [isLoading, setIsLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<"calendar" | "list">("list");
-  const [calendarView, setCalendarView] = useState<"month" | "week" | "day">("month");
+  const [calendarView, setCalendarView] = useState<"month" | "week" | "day">(
+    "month"
+  );
   const [currentWeek, setCurrentWeek] = useState(0);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<BookingFilter>("all");
-  const [filteredBookings, setFilteredBookings] = useState<ServiceBooking[]>([]);
-  const [isPriceApprovalModalOpen, setIsPriceApprovalModalOpen] = useState(false);
+  const [filteredBookings, setFilteredBookings] = useState<ServiceBooking[]>(
+    []
+  );
+  const [isPriceApprovalModalOpen, setIsPriceApprovalModalOpen] =
+    useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [activeActionBooking, setActiveActionBooking] = useState<ServiceBooking | null>(null);
+  const [activeActionBooking, setActiveActionBooking] =
+    useState<ServiceBooking | null>(null);
   const [priceApprovalCount, setPriceApprovalCount] = useState(0);
   const [customerId, setCustomerId] = useState<number>(1);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+
 
   useEffect(() => {
     fetchData();
@@ -245,13 +256,19 @@ const BookingManagement: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status.toLowerCase()) {
-      case "pending": return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+      case "pending":
+        return "bg-orange-500/20 text-orange-400 border-orange-500/30";
       case "confirmed":
-      case "price pending": return "bg-blue-500/20 text-blue-400 border-blue-500/30";
-      case "in progress": return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
-      case "completed": return "bg-green-500/20 text-green-400 border-green-500/30";
-      case "cancelled": return "bg-red-500/20 text-red-400 border-red-500/30";
-      default: return "bg-gray-500/20 text-gray-400 border-gray-500/30";
+      case "price pending":
+        return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+      case "in progress":
+        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/30";
+      case "completed":
+        return "bg-green-500/20 text-green-400 border-green-500/30";
+      case "cancelled":
+        return "bg-red-500/20 text-red-400 border-red-500/30";
+      default:
+        return "bg-gray-500/20 text-gray-400 border-gray-500/30";
     }
   };
 
@@ -269,33 +286,51 @@ const BookingManagement: React.FC = () => {
 
   const getFilterCount = (filterType: BookingFilter) => {
     switch (filterType) {
-      case "all": return bookings.length;
-      case "active": return bookings.filter(
-        (b) => b.status === "Confirmed" || b.status === "In Progress" || b.status === "Price Pending"
-      ).length;
-      case "completed": return bookings.filter((b) => b.status === "Completed").length;
-      case "pending": return bookings.filter((b) => b.status === "Pending" && !b.confirmed).length;
-      case "cancelled": return bookings.filter((b) => b.status === "Cancelled").length;
-      case "priceApproval": return bookings.filter(
-        (b) =>
-          (b.status === "Confirmed" || b.status === "Price Pending") &&
-          (b.estimatedCost !== null || b.estimatedMinCost !== null) &&
-          b.priceApproved === false &&
-          b.priceRejected === false
-      ).length;
-      default: return 0;
+      case "all":
+        return bookings.length;
+      case "active":
+        return bookings.filter(
+          (b) =>
+            b.status === "Confirmed" ||
+            b.status === "In Progress" ||
+            b.status === "Price Pending"
+        ).length;
+      case "completed":
+        return bookings.filter((b) => b.status === "Completed").length;
+      case "pending":
+        return bookings.filter((b) => b.status === "Pending" && !b.confirmed)
+          .length;
+      case "cancelled":
+        return bookings.filter((b) => b.status === "Cancelled").length;
+      case "priceApproval":
+        return bookings.filter(
+          (b) =>
+            (b.status === "Confirmed" || b.status === "Price Pending") &&
+            (b.estimatedCost !== null || b.estimatedMinCost !== null) &&
+            b.priceApproved === false &&
+            b.priceRejected === false
+        ).length;
+      default:
+        return 0;
     }
   };
 
   const getFilterLabel = (filterType: BookingFilter) => {
     switch (filterType) {
-      case "all": return "All Bookings";
-      case "active": return "Active";
-      case "completed": return "Completed";
-      case "pending": return "Pending";
-      case "cancelled": return "Cancelled";
-      case "priceApproval": return "Price Approval";
-      default: return "All";
+      case "all":
+        return "All Bookings";
+      case "active":
+        return "Active";
+      case "completed":
+        return "Completed";
+      case "pending":
+        return "Pending";
+      case "cancelled":
+        return "Cancelled";
+      case "priceApproval":
+        return "Price Approval";
+      default:
+        return "All";
     }
   };
 
@@ -345,7 +380,11 @@ const BookingManagement: React.FC = () => {
       );
     } catch (error) {
       console.error("Error updating price approval:", error);
-      alert(error instanceof Error ? error.message : "Failed to update price approval");
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to update price approval"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -362,7 +401,9 @@ const BookingManagement: React.FC = () => {
       if (!response.ok) throw new Error("Failed to cancel booking");
       setBookings((prev) =>
         prev.map((booking) =>
-          booking.id === bookingId ? { ...booking, status: "Cancelled" } : booking
+          booking.id === bookingId
+            ? { ...booking, status: "Cancelled" }
+            : booking
         )
       );
       setSelectedBooking(null);
@@ -382,13 +423,20 @@ const BookingManagement: React.FC = () => {
   }) => {
     const getStatusIcon = (status: string) => {
       switch (status.toLowerCase()) {
-        case "completed": return "✅";
-        case "in progress": return "🔧";
-        case "confirmed": return "📅";
-        case "pending": return "⏳";
-        case "cancelled": return "❌";
-        case "price pending": return "💰";
-        default: return "📝";
+        case "completed":
+          return "✅";
+        case "in progress":
+          return "🔧";
+        case "confirmed":
+          return "📅";
+        case "pending":
+          return "⏳";
+        case "cancelled":
+          return "❌";
+        case "price pending":
+          return "💰";
+        default:
+          return "📝";
       }
     };
     if (booking && needsPriceApproval(booking)) {
@@ -421,17 +469,24 @@ const BookingManagement: React.FC = () => {
   };
 
   const getServiceType = (booking: ServiceBooking) => {
-    if (booking.reportedIssue?.toLowerCase().includes("oil")) return "Oil Change";
-    if (booking.reportedIssue?.toLowerCase().includes("brake")) return "Brake Service";
-    if (booking.reportedIssue?.toLowerCase().includes("ac")) return "AC Service";
-    if (booking.reportedIssue?.toLowerCase().includes("tire")) return "Tire Service";
-    if (booking.reportedIssue?.toLowerCase().includes("battery")) return "Battery Service";
+    if (booking.reportedIssue?.toLowerCase().includes("oil"))
+      return "Oil Change";
+    if (booking.reportedIssue?.toLowerCase().includes("brake"))
+      return "Brake Service";
+    if (booking.reportedIssue?.toLowerCase().includes("ac"))
+      return "AC Service";
+    if (booking.reportedIssue?.toLowerCase().includes("tire"))
+      return "Tire Service";
+    if (booking.reportedIssue?.toLowerCase().includes("battery"))
+      return "Battery Service";
     return "General Service";
   };
 
   const formatPriceDisplay = (booking: ServiceBooking) => {
     if (booking.estimatedMinCost && booking.estimatedMaxCost) {
-      return `RM ${booking.estimatedMinCost.toFixed(2)} - RM ${booking.estimatedMaxCost.toFixed(2)}`;
+      return `RM ${booking.estimatedMinCost.toFixed(
+        2
+      )} - RM ${booking.estimatedMaxCost.toFixed(2)}`;
     } else if (booking.estimatedCost) {
       return `RM ${booking.estimatedCost.toFixed(2)}`;
     }
@@ -444,7 +499,9 @@ const BookingManagement: React.FC = () => {
       <div className="mt-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h5 className="text-blue-400 font-semibold">Price Estimate Ready</h5>
+            <h5 className="text-blue-400 font-semibold">
+              Price Estimate Ready
+            </h5>
             <p className="text-sm text-gray-300">
               {formatPriceDisplay(booking)} • Please approve to continue
             </p>
@@ -453,7 +510,11 @@ const BookingManagement: React.FC = () => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (confirm(`Approve price estimate of ${formatPriceDisplay(booking)}?`)) {
+                if (
+                  confirm(
+                    `Approve price estimate of ${formatPriceDisplay(booking)}?`
+                  )
+                ) {
                   handlePriceApproval(booking.id, true);
                 }
               }}
@@ -482,11 +543,29 @@ const BookingManagement: React.FC = () => {
   const days = getDaysInMonth(currentDate);
   const weekDays = getDaysInWeek(currentDate, currentWeek);
   const monthNames = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December"
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
   ];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const fullDayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const fullDayNames = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+  ];
 
   if (isLoading) {
     return (
@@ -494,7 +573,9 @@ const BookingManagement: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">My Bookings</h2>
-            <p className="text-gray-400">Manage your service appointments and track progress</p>
+            <p className="text-gray-400">
+              Manage your service appointments and track progress
+            </p>
           </div>
         </div>
         <div className="flex justify-center items-center py-12">
@@ -513,7 +594,9 @@ const BookingManagement: React.FC = () => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h2 className="text-2xl font-bold text-white">My Bookings</h2>
-            <p className="text-gray-400">Manage your service appointments and track progress</p>
+            <p className="text-gray-400">
+              Manage your service appointments and track progress
+            </p>
           </div>
         </div>
         <div className="flex justify-center items-center py-12">
@@ -549,7 +632,9 @@ const BookingManagement: React.FC = () => {
             <button
               onClick={() => setView("calendar")}
               className={`px-4 py-2 rounded text-sm font-medium transition-all ${
-                view === "calendar" ? "bg-amber-500 text-white" : "text-gray-400 hover:text-white"
+                view === "calendar"
+                  ? "bg-amber-500 text-white"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               📅 Calendar
@@ -557,7 +642,9 @@ const BookingManagement: React.FC = () => {
             <button
               onClick={() => setView("list")}
               className={`px-4 py-2 rounded text-sm font-medium transition-all ${
-                view === "list" ? "bg-amber-500 text-white" : "text-gray-400 hover:text-white"
+                view === "list"
+                  ? "bg-amber-500 text-white"
+                  : "text-gray-400 hover:text-white"
               }`}
             >
               📋 List View
@@ -576,7 +663,9 @@ const BookingManagement: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "all" ? "border-amber-500 bg-amber-500/10" : "border-gray-700 hover:border-amber-500/30"
+            filter === "all"
+              ? "border-amber-500 bg-amber-500/10"
+              : "border-gray-700 hover:border-amber-500/30"
           }`}
           onClick={() => setFilter("all")}
         >
@@ -585,50 +674,72 @@ const BookingManagement: React.FC = () => {
         </div>
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "active" ? "border-blue-500 bg-blue-500/10" : "border-gray-700 hover:border-blue-500/30"
+            filter === "active"
+              ? "border-blue-500 bg-blue-500/10"
+              : "border-gray-700 hover:border-blue-500/30"
           }`}
           onClick={() => setFilter("active")}
         >
-          <div className="text-2xl font-bold text-blue-400">{getFilterCount("active")}</div>
+          <div className="text-2xl font-bold text-blue-400">
+            {getFilterCount("active")}
+          </div>
           <div className="text-gray-400 text-sm">Active</div>
         </div>
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "completed" ? "border-green-500 bg-green-500/10" : "border-gray-700 hover:border-green-500/30"
+            filter === "completed"
+              ? "border-green-500 bg-green-500/10"
+              : "border-gray-700 hover:border-green-500/30"
           }`}
           onClick={() => setFilter("completed")}
         >
-          <div className="text-2xl font-bold text-green-400">{getFilterCount("completed")}</div>
+          <div className="text-2xl font-bold text-green-400">
+            {getFilterCount("completed")}
+          </div>
           <div className="text-gray-400 text-sm">Completed</div>
         </div>
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "pending" ? "border-orange-500 bg-orange-500/10" : "border-gray-700 hover:border-orange-500/30"
+            filter === "pending"
+              ? "border-orange-500 bg-orange-500/10"
+              : "border-gray-700 hover:border-orange-500/30"
           }`}
           onClick={() => setFilter("pending")}
         >
-          <div className="text-2xl font-bold text-orange-400">{getFilterCount("pending")}</div>
+          <div className="text-2xl font-bold text-orange-400">
+            {getFilterCount("pending")}
+          </div>
           <div className="text-gray-400 text-sm">Pending</div>
         </div>
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "cancelled" ? "border-red-500 bg-red-500/10" : "border-gray-700 hover:border-red-500/30"
+            filter === "cancelled"
+              ? "border-red-500 bg-red-500/10"
+              : "border-gray-700 hover:border-red-500/30"
           }`}
           onClick={() => setFilter("cancelled")}
         >
-          <div className="text-2xl font-bold text-red-400">{getFilterCount("cancelled")}</div>
+          <div className="text-2xl font-bold text-red-400">
+            {getFilterCount("cancelled")}
+          </div>
           <div className="text-gray-400 text-sm">Cancelled</div>
         </div>
         <div
           className={`bg-gray-800/50 rounded-xl p-4 border transition-all cursor-pointer ${
-            filter === "priceApproval" ? "border-purple-500 bg-purple-500/10" : "border-gray-700 hover:border-purple-500/30"
+            filter === "priceApproval"
+              ? "border-purple-500 bg-purple-500/10"
+              : "border-gray-700 hover:border-purple-500/30"
           }`}
           onClick={() => setFilter("priceApproval")}
         >
-          <div className="text-2xl font-bold text-purple-400">{priceApprovalCount}</div>
+          <div className="text-2xl font-bold text-purple-400">
+            {priceApprovalCount}
+          </div>
           <div className="text-gray-400 text-sm">Price Approvals</div>
           {priceApprovalCount > 0 && (
-            <div className="text-xs text-purple-300 mt-1 animate-pulse">⚠️ Needs your attention</div>
+            <div className="text-xs text-purple-300 mt-1 animate-pulse">
+              ⚠️ Needs your attention
+            </div>
           )}
         </div>
       </div>
@@ -638,23 +749,33 @@ const BookingManagement: React.FC = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-2xl font-bold text-white">
-                {calendarView === "month" && `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}`}
-                {calendarView === "week" && `Week of ${weekDays[0].toLocaleDateString()} - ${weekDays[6].toLocaleDateString()}`}
-                {calendarView === "day" && selectedDate && `${selectedDate.toLocaleDateString("en-US", {
-                  weekday: "long",
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}`}
+                {calendarView === "month" &&
+                  `${
+                    monthNames[currentDate.getMonth()]
+                  } ${currentDate.getFullYear()}`}
+                {calendarView === "week" &&
+                  `Week of ${weekDays[0].toLocaleDateString()} - ${weekDays[6].toLocaleDateString()}`}
+                {calendarView === "day" &&
+                  selectedDate &&
+                  `${selectedDate.toLocaleDateString("en-US", {
+                    weekday: "long",
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}`}
               </h2>
-              <p className="text-gray-400 text-sm">Your personal service schedule</p>
+              <p className="text-gray-400 text-sm">
+                Your personal service schedule
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <div className="flex bg-gray-800/50 rounded-lg border border-gray-700 p-1">
                 <button
                   onClick={() => setCalendarView("month")}
                   className={`px-3 py-1 rounded text-sm transition-all ${
-                    calendarView === "month" ? "bg-amber-500 text-white" : "text-gray-400 hover:text-white"
+                    calendarView === "month"
+                      ? "bg-amber-500 text-white"
+                      : "text-gray-400 hover:text-white"
                   }`}
                 >
                   Month
@@ -662,7 +783,9 @@ const BookingManagement: React.FC = () => {
                 <button
                   onClick={() => setCalendarView("week")}
                   className={`px-3 py-1 rounded text-sm transition-all ${
-                    calendarView === "week" ? "bg-amber-500 text-white" : "text-gray-400 hover:text-white"
+                    calendarView === "week"
+                      ? "bg-amber-500 text-white"
+                      : "text-gray-400 hover:text-white"
                   }`}
                 >
                   Week
@@ -673,7 +796,9 @@ const BookingManagement: React.FC = () => {
                     setSelectedDate(new Date());
                   }}
                   className={`px-3 py-1 rounded text-sm transition-all ${
-                    calendarView === "day" ? "bg-amber-500 text-white" : "text-gray-400 hover:text-white"
+                    calendarView === "day"
+                      ? "bg-amber-500 text-white"
+                      : "text-gray-400 hover:text-white"
                   }`}
                 >
                   Day
@@ -785,7 +910,9 @@ const BookingManagement: React.FC = () => {
                                 <div className="font-medium truncate">
                                   {formatTime(booking.bookingDate)}
                                 </div>
-                                <div className="truncate">{booking.vehicle.model}</div>
+                                <div className="truncate">
+                                  {booking.vehicle.model}
+                                </div>
                               </div>
                             ))}
                           {getBookingsForDate(date).length > 3 && (
@@ -810,17 +937,23 @@ const BookingManagement: React.FC = () => {
                   <div
                     key={index}
                     className={`p-4 text-center border-r border-gray-800 last:border-r-0 cursor-pointer ${
-                      date.toDateString() === new Date().toDateString() ? "bg-amber-500/10" : ""
+                      date.toDateString() === new Date().toDateString()
+                        ? "bg-amber-500/10"
+                        : ""
                     }`}
                     onClick={() => {
                       setSelectedDate(date);
                       setCalendarView("day");
                     }}
                   >
-                    <div className="text-sm font-medium text-gray-400">{dayNames[date.getDay()]}</div>
+                    <div className="text-sm font-medium text-gray-400">
+                      {dayNames[date.getDay()]}
+                    </div>
                     <div
                       className={`text-lg font-bold ${
-                        date.toDateString() === new Date().toDateString() ? "text-amber-400" : "text-white"
+                        date.toDateString() === new Date().toDateString()
+                          ? "text-amber-400"
+                          : "text-white"
                       }`}
                     >
                       {date.getDate()}
@@ -832,53 +965,65 @@ const BookingManagement: React.FC = () => {
                 ))}
               </div>
               <div className="max-h-96 overflow-y-auto">
-                {Array.from({ length: 20 }, (_, i) => 8 + Math.floor(i / 2) + (i % 2 === 0 ? 0 : 0.5)).map(
-                  (time, index) => {
-                    const hour = Math.floor(time);
-                    const minute = time % 1 === 0 ? "00" : "30";
-                    const timeString = `${hour.toString().padStart(2, "0")}:${minute}`;
-                    return (
-                      <div key={index} className="grid grid-cols-8 border-b border-gray-800 last:border-b-0">
-                        <div className="p-3 border-r border-gray-800 text-sm text-gray-400 text-right">
-                          {timeString}
-                        </div>
-                        {weekDays.map((date, dayIndex) => {
-                          const bookingsForSlot = bookings.filter((booking) => {
-                            const bookingDate = new Date(booking.bookingDate);
-                            return (
-                              bookingDate.toDateString() === date.toDateString() &&
-                              bookingDate.getHours() === hour &&
-                              bookingDate.getMinutes() === (minute === "00" ? 0 : 30)
-                            );
-                          });
-                          return (
-                            <div
-                              key={dayIndex}
-                              className="p-1 border-r border-gray-800 last:border-r-0 min-h-[60px]"
-                              onClick={() => {
-                                if (bookingsForSlot.length > 0) {
-                                  setSelectedBooking(bookingsForSlot[0]);
-                                }
-                              }}
-                            >
-                              {bookingsForSlot.map((booking) => (
-                                <div
-                                  key={booking.id}
-                                  className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(
-                                    booking.status
-                                  )}`}
-                                >
-                                  <div className="font-medium truncate">{booking.vehicle.model}</div>
-                                  <div className="truncate text-amber-400">{getServiceType(booking)}</div>
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
+                {Array.from(
+                  { length: 20 },
+                  (_, i) => 8 + Math.floor(i / 2) + (i % 2 === 0 ? 0 : 0.5)
+                ).map((time, index) => {
+                  const hour = Math.floor(time);
+                  const minute = time % 1 === 0 ? "00" : "30";
+                  const timeString = `${hour
+                    .toString()
+                    .padStart(2, "0")}:${minute}`;
+                  return (
+                    <div
+                      key={index}
+                      className="grid grid-cols-8 border-b border-gray-800 last:border-b-0"
+                    >
+                      <div className="p-3 border-r border-gray-800 text-sm text-gray-400 text-right">
+                        {timeString}
                       </div>
-                    );
-                  }
-                )}
+                      {weekDays.map((date, dayIndex) => {
+                        const bookingsForSlot = bookings.filter((booking) => {
+                          const bookingDate = new Date(booking.bookingDate);
+                          return (
+                            bookingDate.toDateString() ===
+                              date.toDateString() &&
+                            bookingDate.getHours() === hour &&
+                            bookingDate.getMinutes() ===
+                              (minute === "00" ? 0 : 30)
+                          );
+                        });
+                        return (
+                          <div
+                            key={dayIndex}
+                            className="p-1 border-r border-gray-800 last:border-r-0 min-h-[60px]"
+                            onClick={() => {
+                              if (bookingsForSlot.length > 0) {
+                                setSelectedBooking(bookingsForSlot[0]);
+                              }
+                            }}
+                          >
+                            {bookingsForSlot.map((booking) => (
+                              <div
+                                key={booking.id}
+                                className={`p-2 rounded border text-xs cursor-pointer transition-all hover:scale-105 ${getStatusColor(
+                                  booking.status
+                                )}`}
+                              >
+                                <div className="font-medium truncate">
+                                  {booking.vehicle.model}
+                                </div>
+                                <div className="truncate text-amber-400">
+                                  {getServiceType(booking)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -900,7 +1045,10 @@ const BookingManagement: React.FC = () => {
               </div>
               <div className="max-h-96 overflow-y-auto">
                 {getTimeSlots(selectedDate).map((slot, index) => (
-                  <div key={index} className="flex border-b border-gray-800 last:border-b-0">
+                  <div
+                    key={index}
+                    className="flex border-b border-gray-800 last:border-b-0"
+                  >
                     <div className="w-24 p-4 border-r border-gray-800 text-sm text-gray-400 text-right">
                       {slot.time}
                     </div>
@@ -921,17 +1069,23 @@ const BookingManagement: React.FC = () => {
                         >
                           <div className="flex justify-between items-start">
                             <div>
-                              <div className="font-semibold text-white">{booking.vehicle.model}</div>
+                              <div className="font-semibold text-white">
+                                {booking.vehicle.model}
+                              </div>
                               <div className="text-sm text-gray-300">
                                 {booking.vehicle.registrationNumber}
                               </div>
-                              <div className="text-sm text-amber-400 mt-1">{getServiceType(booking)}</div>
+                              <div className="text-sm text-amber-400 mt-1">
+                                {getServiceType(booking)}
+                              </div>
                             </div>
                             <div className="text-right">
                               <div className="text-amber-400 font-bold">
                                 {formatPriceDisplay(booking)}
                               </div>
-                              <div className="text-xs text-gray-400">{booking.duration || 1}h</div>
+                              <div className="text-xs text-gray-400">
+                                {booking.duration || 1}h
+                              </div>
                               {booking.service?.worker && (
                                 <div className="text-xs text-gray-400 mt-1">
                                   {booking.service.worker.name}
@@ -979,7 +1133,9 @@ const BookingManagement: React.FC = () => {
               <p className="text-gray-400 mb-4">
                 {filter === "all"
                   ? "You don't have any bookings yet."
-                  : `You don't have any ${getFilterLabel(filter).toLowerCase()} bookings.`}
+                  : `You don't have any ${getFilterLabel(
+                      filter
+                    ).toLowerCase()} bookings.`}
               </p>
               {filter !== "all" && (
                 <button
@@ -1011,11 +1167,15 @@ const BookingManagement: React.FC = () => {
                           {booking.vehicle.model}
                         </h3>
                         <p className="text-gray-400 text-sm">
-                          {booking.vehicle.registrationNumber} • {booking.vehicle.year}
+                          {booking.vehicle.registrationNumber} •{" "}
+                          {booking.vehicle.year}
                         </p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <StatusBadge status={booking.status} booking={booking} />
+                        <StatusBadge
+                          status={booking.status}
+                          booking={booking}
+                        />
                         {booking.status === "Completed" && (
                           <div className="text-right">
                             {booking.finalCost && (
@@ -1025,11 +1185,18 @@ const BookingManagement: React.FC = () => {
                                 </div>
                                 <div className="text-xs">
                                   {booking.paymentStatus === "paid" ? (
-                                    <span className="text-green-400">✅ Paid</span>
-                                  ) : booking.paymentStatus === "partially_paid" ? (
-                                    <span className="text-yellow-400">⏳ Partial</span>
+                                    <span className="text-green-400">
+                                      ✅ Paid
+                                    </span>
+                                  ) : booking.paymentStatus ===
+                                    "partially_paid" ? (
+                                    <span className="text-yellow-400">
+                                      ⏳ Partial
+                                    </span>
                                   ) : (
-                                    <span className="text-red-400">💳 Pending</span>
+                                    <span className="text-red-400">
+                                      💳 Pending
+                                    </span>
                                   )}
                                 </div>
                               </>
@@ -1038,23 +1205,27 @@ const BookingManagement: React.FC = () => {
                         )}
                         {(booking.estimatedCost || booking.estimatedMinCost) &&
                           booking.status !== "Completed" && (
-                          <div className="text-right">
-                            <span className="text-amber-400 font-bold">
-                              {formatPriceDisplay(booking)}
-                            </span>
-                            {needsPriceApproval(booking) && (
-                              <div className="text-xs text-purple-400 mt-1 animate-pulse">
-                                ⚠️ Needs approval
-                              </div>
-                            )}
-                            {booking.priceApproved && (
-                              <div className="text-xs text-green-400 mt-1">✅ Approved</div>
-                            )}
-                            {booking.priceRejected && (
-                              <div className="text-xs text-red-400 mt-1">❌ Rejected</div>
-                            )}
-                          </div>
-                        )}
+                            <div className="text-right">
+                              <span className="text-amber-400 font-bold">
+                                {formatPriceDisplay(booking)}
+                              </span>
+                              {needsPriceApproval(booking) && (
+                                <div className="text-xs text-purple-400 mt-1 animate-pulse">
+                                  ⚠️ Needs approval
+                                </div>
+                              )}
+                              {booking.priceApproved && (
+                                <div className="text-xs text-green-400 mt-1">
+                                  ✅ Approved
+                                </div>
+                              )}
+                              {booking.priceRejected && (
+                                <div className="text-xs text-red-400 mt-1">
+                                  ❌ Rejected
+                                </div>
+                              )}
+                            </div>
+                          )}
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1064,30 +1235,38 @@ const BookingManagement: React.FC = () => {
                           {new Date(booking.bookingDate).toLocaleDateString()}
                         </p>
                         <p className="text-amber-400 text-sm">
-                          {formatTime(booking.bookingDate)} • {booking.duration || 1}h
+                          {formatTime(booking.bookingDate)} •{" "}
+                          {booking.duration || 1}h
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-400 text-sm">Service Type</p>
-                        <p className="text-white font-medium">{getServiceType(booking)}</p>
+                        <p className="text-white font-medium">
+                          {getServiceType(booking)}
+                        </p>
                       </div>
                     </div>
                     {booking.reportedIssue && (
                       <div className="mb-4">
-                        <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
+                        <p className="text-gray-400 text-sm mb-2">
+                          Reported Issue
+                        </p>
                         <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
                           {booking.reportedIssue}
                         </p>
                       </div>
                     )}
                     {booking.status === "Completed" && booking.finalCost && (
-                      <div className="mb-4">
-                        <PaymentButton
-                          booking={booking}
-                          customerId={customerId}
-                          onPaymentSuccess={handlePaymentSuccess}
-                        />
-                      </div>
+                      <button
+                        onClick={() => {
+                          // Open payment modal
+                          setSelectedBooking(booking);
+                          setIsPaymentModalOpen(true);
+                        }}
+                        className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-6 py-3 rounded-xl font-semibold transition-all"
+                      >
+                        💳 Pay RM {booking.finalCost.toFixed(2)}
+                      </button>
                     )}
                     <PriceApprovalButtons booking={booking} />
                   </div>
@@ -1129,14 +1308,19 @@ const BookingManagement: React.FC = () => {
               Price Approvals Needed ({priceApprovalCount})
             </h3>
             <p className="text-gray-400">
-              Review and approve price estimates from technicians before they can start work on your vehicle.
+              Review and approve price estimates from technicians before they
+              can start work on your vehicle.
             </p>
           </div>
           {priceApprovalCount === 0 ? (
             <div className="text-center py-12 bg-gray-800/30 rounded-2xl border border-gray-700">
               <div className="text-gray-400 text-6xl mb-4">✅</div>
-              <h3 className="text-white font-semibold text-lg mb-2">All Price Estimates Approved</h3>
-              <p className="text-gray-400 mb-4">You don't have any pending price approvals.</p>
+              <h3 className="text-white font-semibold text-lg mb-2">
+                All Price Estimates Approved
+              </h3>
+              <p className="text-gray-400 mb-4">
+                You don't have any pending price approvals.
+              </p>
               <button
                 onClick={() => setFilter("all")}
                 className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg transition-colors"
@@ -1160,32 +1344,43 @@ const BookingManagement: React.FC = () => {
                             {booking.vehicle.model}
                           </h3>
                           <p className="text-gray-400 text-sm">
-                            {booking.vehicle.registrationNumber} • {booking.vehicle.year}
+                            {booking.vehicle.registrationNumber} •{" "}
+                            {booking.vehicle.year}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <StatusBadge status={booking.status} booking={booking} />
+                          <StatusBadge
+                            status={booking.status}
+                            booking={booking}
+                          />
                           <div className="text-right">
                             <div className="text-amber-400 font-bold text-2xl">
                               {formatPriceDisplay(booking)}
                             </div>
-                            <div className="text-xs text-gray-400">Technician's estimate</div>
+                            <div className="text-xs text-gray-400">
+                              Technician's estimate
+                            </div>
                           </div>
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                          <p className="text-gray-400 text-sm">Scheduled Time</p>
+                          <p className="text-gray-400 text-sm">
+                            Scheduled Time
+                          </p>
                           <p className="text-white font-medium">
                             {new Date(booking.bookingDate).toLocaleDateString()}
                           </p>
                           <p className="text-amber-400 text-sm">
-                            {formatTime(booking.bookingDate)} • {booking.duration || 1}h
+                            {formatTime(booking.bookingDate)} •{" "}
+                            {booking.duration || 1}h
                           </p>
                         </div>
                         <div>
                           <p className="text-gray-400 text-sm">Service Type</p>
-                          <p className="text-white font-medium">{getServiceType(booking)}</p>
+                          <p className="text-white font-medium">
+                            {getServiceType(booking)}
+                          </p>
                           {booking.service?.worker && (
                             <p className="text-gray-400 text-sm mt-1">
                               Technician: {booking.service.worker.name}
@@ -1195,7 +1390,9 @@ const BookingManagement: React.FC = () => {
                       </div>
                       {booking.reportedIssue && (
                         <div className="mb-4">
-                          <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
+                          <p className="text-gray-400 text-sm mb-2">
+                            Reported Issue
+                          </p>
                           <p className="text-white bg-gray-700/50 rounded-lg p-3 border border-gray-600">
                             {booking.reportedIssue}
                           </p>
@@ -1203,8 +1400,12 @@ const BookingManagement: React.FC = () => {
                       )}
                       {booking.service?.repairNotes && (
                         <div className="mb-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                          <p className="text-gray-400 text-sm mb-2">Technician's Assessment</p>
-                          <p className="text-white">{booking.service.repairNotes}</p>
+                          <p className="text-gray-400 text-sm mb-2">
+                            Technician's Assessment
+                          </p>
+                          <p className="text-white">
+                            {booking.service.repairNotes}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -1212,7 +1413,13 @@ const BookingManagement: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (confirm(`Approve price estimate of ${formatPriceDisplay(booking)}?`)) {
+                          if (
+                            confirm(
+                              `Approve price estimate of ${formatPriceDisplay(
+                                booking
+                              )}?`
+                            )
+                          ) {
                             handlePriceApproval(booking.id, true);
                           }
                         }}
@@ -1247,7 +1454,10 @@ const BookingManagement: React.FC = () => {
                       </button>
                       {booking.service?.worker?.phone && (
                         <a
-                          href={`https://wa.me/${booking.service.worker.phone.replace(/\D/g, "")}`}
+                          href={`https://wa.me/${booking.service.worker.phone.replace(
+                            /\D/g,
+                            ""
+                          )}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
@@ -1271,7 +1481,9 @@ const BookingManagement: React.FC = () => {
           <div className="bg-gray-900 rounded-2xl border border-amber-500/30 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-start mb-6">
-                <h3 className="text-xl font-bold text-white">Booking Details</h3>
+                <h3 className="text-xl font-bold text-white">
+                  Booking Details
+                </h3>
                 <button
                   onClick={() => setSelectedBooking(null)}
                   className="text-gray-400 hover:text-white transition-colors"
@@ -1288,17 +1500,23 @@ const BookingManagement: React.FC = () => {
                     <div className="space-y-3">
                       <div>
                         <p className="text-gray-400 text-sm">Vehicle Model</p>
-                        <p className="text-white font-medium">{selectedBooking.vehicle.model}</p>
+                        <p className="text-white font-medium">
+                          {selectedBooking.vehicle.model}
+                        </p>
                       </div>
                       <div>
-                        <p className="text-gray-400 text-sm">Registration Number</p>
+                        <p className="text-gray-400 text-sm">
+                          Registration Number
+                        </p>
                         <p className="text-white font-medium">
                           {selectedBooking.vehicle.registrationNumber}
                         </p>
                       </div>
                       <div>
                         <p className="text-gray-400 text-sm">Service Type</p>
-                        <p className="text-white font-medium">{getServiceType(selectedBooking)}</p>
+                        <p className="text-white font-medium">
+                          {getServiceType(selectedBooking)}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1309,12 +1527,19 @@ const BookingManagement: React.FC = () => {
                     <div className="space-y-3">
                       <div>
                         <p className="text-gray-400 text-sm">Status</p>
-                        <StatusBadge status={selectedBooking.status} booking={selectedBooking} />
+                        <StatusBadge
+                          status={selectedBooking.status}
+                          booking={selectedBooking}
+                        />
                       </div>
                       <div>
-                        <p className="text-gray-400 text-sm">Scheduled Date & Time</p>
+                        <p className="text-gray-400 text-sm">
+                          Scheduled Date & Time
+                        </p>
                         <p className="text-white font-medium">
-                          {new Date(selectedBooking.bookingDate).toLocaleDateString("en-US", {
+                          {new Date(
+                            selectedBooking.bookingDate
+                          ).toLocaleDateString("en-US", {
                             weekday: "long",
                             year: "numeric",
                             month: "long",
@@ -1322,7 +1547,8 @@ const BookingManagement: React.FC = () => {
                           })}
                         </p>
                         <p className="text-amber-400 font-medium">
-                          {formatTime(selectedBooking.bookingDate)} • {selectedBooking.duration || 1} hours
+                          {formatTime(selectedBooking.bookingDate)} •{" "}
+                          {selectedBooking.duration || 1} hours
                         </p>
                       </div>
                       <div>
@@ -1343,7 +1569,9 @@ const BookingManagement: React.FC = () => {
                         {selectedBooking.priceRejected && (
                           <div className="text-sm mt-2 px-3 py-1 rounded-full inline-block bg-red-500/20 text-red-400">
                             ❌ Price Rejected
-                            {selectedBooking.rejectionReason && <span>: {selectedBooking.rejectionReason}</span>}
+                            {selectedBooking.rejectionReason && (
+                              <span>: {selectedBooking.rejectionReason}</span>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1352,14 +1580,24 @@ const BookingManagement: React.FC = () => {
                 </div>
                 {needsPriceApproval(selectedBooking) && (
                   <div className="space-y-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                    <h4 className="text-lg font-semibold text-blue-400">Price Approval Required</h4>
+                    <h4 className="text-lg font-semibold text-blue-400">
+                      Price Approval Required
+                    </h4>
                     <p className="text-gray-300">
-                      The technician has provided a price estimate for your service. Please review and approve or reject it before work can begin.
+                      The technician has provided a price estimate for your
+                      service. Please review and approve or reject it before
+                      work can begin.
                     </p>
                     <div className="flex gap-3">
                       <button
                         onClick={() => {
-                          if (confirm(`Approve price estimate of ${formatPriceDisplay(selectedBooking)}?`)) {
+                          if (
+                            confirm(
+                              `Approve price estimate of ${formatPriceDisplay(
+                                selectedBooking
+                              )}?`
+                            )
+                          ) {
                             handlePriceApproval(selectedBooking.id, true);
                           }
                         }}
@@ -1388,69 +1626,78 @@ const BookingManagement: React.FC = () => {
                     </div>
                   </div>
                 )}
-                {selectedBooking.status === "Completed" && selectedBooking.finalCost && (
-                  <div className="p-4 bg-gradient-to-r from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl">
-                    <h4 className="text-lg font-semibold text-green-400 mb-4 flex items-center">
-                      <span className="mr-2">💳</span>
-                      Payment Information
-                    </h4>
-                    <div className="mb-4">
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-300">Amount:</span>
-                        <span className="text-amber-400 text-xl font-bold">
-                          RM {selectedBooking.finalCost.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-300">Status:</span>
-                        <span
-                          className={`font-medium ${
-                            selectedBooking.paymentStatus === "paid"
-                              ? "text-green-400"
-                              : selectedBooking.paymentStatus === "partially_paid"
-                              ? "text-yellow-400"
-                              : "text-red-400"
-                          }`}
-                        >
-                          {selectedBooking.paymentStatus === "paid"
-                            ? "✅ Paid"
-                            : selectedBooking.paymentStatus === "partially_paid"
-                            ? "⏳ Partially Paid"
-                            : "💳 Payment Pending"}
-                        </span>
-                      </div>
-                      {selectedBooking.amountPaid && selectedBooking.amountPaid > 0 && (
-                        <div className="flex justify-between mt-1">
-                          <span className="text-gray-300">Amount Paid:</span>
-                          <span className="text-green-400">
-                            RM {selectedBooking.amountPaid.toFixed(2)}
+                {selectedBooking.status === "Completed" &&
+                  selectedBooking.finalCost && (
+                    <div className="p-4 bg-gradient-to-r from-green-500/10 to-emerald-600/10 border border-green-500/30 rounded-xl">
+                      <h4 className="text-lg font-semibold text-green-400 mb-4 flex items-center">
+                        <span className="mr-2">💳</span>
+                        Payment Information
+                      </h4>
+                      <div className="mb-4">
+                        <div className="flex justify-between mb-2">
+                          <span className="text-gray-300">Amount:</span>
+                          <span className="text-amber-400 text-xl font-bold">
+                            RM {selectedBooking.finalCost.toFixed(2)}
                           </span>
                         </div>
-                      )}
-                      {selectedBooking.balanceDue && selectedBooking.balanceDue > 0 && (
-                        <div className="flex justify-between mt-1">
-                          <span className="text-gray-300">Balance Due:</span>
-                          <span className="text-red-400">
-                            RM {selectedBooking.balanceDue.toFixed(2)}
+                        <div className="flex justify-between">
+                          <span className="text-gray-300">Status:</span>
+                          <span
+                            className={`font-medium ${
+                              selectedBooking.paymentStatus === "paid"
+                                ? "text-green-400"
+                                : selectedBooking.paymentStatus ===
+                                  "partially_paid"
+                                ? "text-yellow-400"
+                                : "text-red-400"
+                            }`}
+                          >
+                            {selectedBooking.paymentStatus === "paid"
+                              ? "✅ Paid"
+                              : selectedBooking.paymentStatus ===
+                                "partially_paid"
+                              ? "⏳ Partially Paid"
+                              : "💳 Payment Pending"}
                           </span>
+                        </div>
+                        {selectedBooking.amountPaid &&
+                          selectedBooking.amountPaid > 0 && (
+                            <div className="flex justify-between mt-1">
+                              <span className="text-gray-300">
+                                Amount Paid:
+                              </span>
+                              <span className="text-green-400">
+                                RM {selectedBooking.amountPaid.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                        {selectedBooking.balanceDue &&
+                          selectedBooking.balanceDue > 0 && (
+                            <div className="flex justify-between mt-1">
+                              <span className="text-gray-300">
+                                Balance Due:
+                              </span>
+                              <span className="text-red-400">
+                                RM {selectedBooking.balanceDue.toFixed(2)}
+                              </span>
+                            </div>
+                          )}
+                      </div>
+
+                      {selectedBooking.paymentStatus !== "paid" && (
+                        <div className="mt-4">
+                          <PaymentButton
+                            booking={selectedBooking}
+                            customerId={customerId}
+                            onPaymentSuccess={() => {
+                              handlePaymentSuccess();
+                              setSelectedBooking(null);
+                            }}
+                          />
                         </div>
                       )}
                     </div>
-                    
-                    {selectedBooking.paymentStatus !== "paid" && (
-                      <div className="mt-4">
-                        <PaymentButton
-                          booking={selectedBooking}
-                          customerId={customerId}
-                          onPaymentSuccess={() => {
-                            handlePaymentSuccess();
-                            setSelectedBooking(null);
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
+                  )}
                 <div className="space-y-4">
                   <h4 className="text-lg font-semibold text-amber-400 flex items-center">
                     <span className="mr-2">🔧</span> Service Details
@@ -1458,12 +1705,15 @@ const BookingManagement: React.FC = () => {
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Reported Issue</p>
                     <p className="text-white p-3 bg-gray-800/50 rounded-lg border border-gray-700">
-                      {selectedBooking.reportedIssue || "No specific issue reported"}
+                      {selectedBooking.reportedIssue ||
+                        "No specific issue reported"}
                     </p>
                   </div>
                   {selectedBooking.service?.serviceStatus && (
                     <div>
-                      <p className="text-gray-400 text-sm mb-2">Current Status</p>
+                      <p className="text-gray-400 text-sm mb-2">
+                        Current Status
+                      </p>
                       <p className="text-amber-400 font-medium">
                         {selectedBooking.service.serviceStatus}
                       </p>
@@ -1471,7 +1721,9 @@ const BookingManagement: React.FC = () => {
                   )}
                   {selectedBooking.service?.repairNotes && (
                     <div>
-                      <p className="text-gray-400 text-sm mb-2">Technician Notes</p>
+                      <p className="text-gray-400 text-sm mb-2">
+                        Technician Notes
+                      </p>
                       <p className="text-white p-3 bg-gray-800/50 rounded-lg border border-gray-700">
                         {selectedBooking.service.repairNotes}
                       </p>
@@ -1481,15 +1733,15 @@ const BookingManagement: React.FC = () => {
                 <div className="flex flex-wrap gap-3 pt-6 border-t border-gray-800">
                   {selectedBooking.status === "Completed" &&
                     selectedBooking.paymentStatus !== "paid" && (
-                    <PaymentButton
-                      booking={selectedBooking}
-                      customerId={customerId}
-                      onPaymentSuccess={() => {
-                        handlePaymentSuccess();
-                        setSelectedBooking(null);
-                      }}
-                    />
-                  )}
+                      <PaymentButton
+                        booking={selectedBooking}
+                        customerId={customerId}
+                        onPaymentSuccess={() => {
+                          handlePaymentSuccess();
+                          setSelectedBooking(null);
+                        }}
+                      />
+                    )}
                   <button className="flex-1 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white py-3 px-6 rounded-xl font-semibold transition-all transform hover:scale-105">
                     Track Service Progress
                   </button>
@@ -1517,9 +1769,13 @@ const BookingManagement: React.FC = () => {
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-gray-900 rounded-2xl border border-red-500/30 max-w-md w-full">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-white mb-4">Reject Price Estimate</h3>
+              <h3 className="text-xl font-bold text-white mb-4">
+                Reject Price Estimate
+              </h3>
               <div className="mb-4 bg-gray-800/50 rounded-lg p-4 border border-gray-700">
-                <p className="text-white font-medium">{activeActionBooking.vehicle.model}</p>
+                <p className="text-white font-medium">
+                  {activeActionBooking.vehicle.model}
+                </p>
                 <p className="text-gray-400 text-sm">
                   {activeActionBooking.vehicle.registrationNumber}
                 </p>
@@ -1540,7 +1796,8 @@ const BookingManagement: React.FC = () => {
                   required
                 />
                 <p className="text-gray-400 text-xs mt-2">
-                  Your feedback will help the technician provide a better estimate.
+                  Your feedback will help the technician provide a better
+                  estimate.
                 </p>
               </div>
               <div className="flex gap-3">
@@ -1560,7 +1817,11 @@ const BookingManagement: React.FC = () => {
                       alert("Please provide a reason for rejecting the price");
                       return;
                     }
-                    handlePriceApproval(activeActionBooking.id, false, rejectionReason);
+                    handlePriceApproval(
+                      activeActionBooking.id,
+                      false,
+                      rejectionReason
+                    );
                   }}
                   disabled={isSubmitting || !rejectionReason.trim()}
                   className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white py-3 rounded-xl font-semibold transition-all disabled:cursor-not-allowed"
@@ -1578,6 +1839,22 @@ const BookingManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {isPaymentModalOpen && selectedBooking && (
+        <PaymentSystem
+          booking={selectedBooking}
+          customerId={customerId}
+          onPaymentSuccess={() => {
+            handlePaymentSuccess();
+            setIsPaymentModalOpen(false);
+            setSelectedBooking(null);
+          }}
+          onClose={() => {
+            setIsPaymentModalOpen(false);
+            setSelectedBooking(null);
+          }}
+        />
       )}
     </div>
   );
