@@ -1,12 +1,27 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Search, Filter, Download, Eye, CheckCircle, XCircle, Clock, FileText, Printer, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
+import {
+  Search,
+  Filter,
+  Download,
+  Eye,
+  CheckCircle,
+  XCircle,
+  Clock,
+  FileText,
+  Printer,
+  ZoomIn,
+  ZoomOut,
+  RotateCw,
+  Mail,
+} from "lucide-react";
 
 interface PaymentRecord {
   id: number;
   bookingId: number;
   customerId: number;
   customerName: string;
+  customerEmail: string;
   vehicleModel: string;
   registrationNumber: string;
   amount: number;
@@ -41,7 +56,14 @@ interface PaymentStats {
   receiptsPending: number;
 }
 
-type PaymentFilter = "all" | "pending" | "completed" | "failed" | "refunded" | "has_receipt" | "no_receipt";
+type PaymentFilter =
+  | "all"
+  | "pending"
+  | "completed"
+  | "failed"
+  | "refunded"
+  | "has_receipt"
+  | "no_receipt";
 type TimeFilter = "today" | "week" | "month" | "year" | "all";
 
 const PaymentTracking: React.FC = () => {
@@ -64,10 +86,14 @@ const PaymentTracking: React.FC = () => {
   const [filter, setFilter] = useState<PaymentFilter>("all");
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("month");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(null);
-  
+  const [selectedPayment, setSelectedPayment] = useState<PaymentRecord | null>(
+    null
+  );
+
   // Receipt viewer state
-  const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(
+    null
+  );
   const [receiptZoom, setReceiptZoom] = useState(1);
   const [receiptRotation, setReceiptRotation] = useState(0);
   const [isVerifyingReceipt, setIsVerifyingReceipt] = useState(false);
@@ -134,7 +160,8 @@ const PaymentTracking: React.FC = () => {
           payment.vehicleModel.toLowerCase().includes(query) ||
           payment.registrationNumber.toLowerCase().includes(query) ||
           payment.transactionId?.toLowerCase().includes(query) ||
-          payment.paymentMethod.toLowerCase().includes(query)
+          payment.paymentMethod.toLowerCase().includes(query) ||
+          payment.customerEmail.toLowerCase().includes(query)
       );
     }
 
@@ -228,6 +255,7 @@ const PaymentTracking: React.FC = () => {
     const headers = [
       "Transaction ID",
       "Customer",
+      "Email",
       "Vehicle",
       "Amount",
       "Payment Method",
@@ -240,6 +268,7 @@ const PaymentTracking: React.FC = () => {
     const csvData = filteredPayments.map((payment) => [
       payment.transactionId || "N/A",
       payment.customerName,
+      payment.customerEmail,
       `${payment.vehicleModel} (${payment.registrationNumber})`,
       payment.amount.toFixed(2),
       getPaymentMethodName(payment.paymentMethod),
@@ -259,21 +288,106 @@ const PaymentTracking: React.FC = () => {
     window.URL.revokeObjectURL(url);
   };
 
+  // Send email notification
+  const sendEmailNotification = (payment: PaymentRecord, isVerified: boolean, rejectionReason?: string) => {
+    const customerEmail = payment.customerEmail || "";
+    const formattedAmount = formatCurrency(payment.amount);
+    const verificationDate = new Date().toLocaleDateString('en-MY');
+    
+    const subject = isVerified 
+      ? `Payment Receipt Verified - CarWorks Service`
+      : `Action Required: Receipt Rejected - CarWorks Service`;
+    
+    let body = `Dear ${payment.customerName},\n\n`;
+    
+    if (isVerified) {
+      body += `Your payment receipt has been verified successfully.\n\n`;
+    } else {
+      body += `Your payment receipt has been rejected.\n\n`;
+    }
+    
+    body += `Payment Details:\n`;
+    body += `----------------\n`;
+    body += `Transaction ID: ${payment.transactionId || 'N/A'}\n`;
+    body += `Amount: ${formattedAmount}\n`;
+    body += `Vehicle: ${payment.vehicleModel}\n`;
+    body += `Registration: ${payment.registrationNumber}\n`;
+    body += `Booking ID: ${payment.bookingId}\n`;
+    body += `Date: ${verificationDate}\n\n`;
+    
+    if (!isVerified && rejectionReason) {
+      body += `Reason for Rejection:\n`;
+      body += `${rejectionReason}\n\n`;
+      
+      body += `Next Steps:\n`;
+      body += `Please upload a new receipt by:\n`;
+      body += `1. Logging into your account\n`;
+      body += `2. Going to "My Payments"\n`;
+      body += `3. Finding this transaction\n`;
+      body += `4. Uploading a clear receipt photo\n\n`;
+    }
+    
+    if (isVerified) {
+      body += `Your booking is now confirmed. Thank you!\n\n`;
+    }
+    
+    body += `Best regards,\n`;
+    body += `CarWorks Service Team\n`;
+    body += `support@carworks.com`;
+    
+    if (!customerEmail) {
+      alert(`Customer email not found. Please contact ${payment.customerName} at their registered email.\n\nEmail Content:\n\n${body}`);
+      return;
+    }
+    
+    const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink, '_blank');
+    
+    setTimeout(() => {
+      alert(`Email opened for ${customerEmail}. Please review and send.`);
+    }, 100);
+  };
+
   const handleVerifyReceipt = async (paymentId: number) => {
     try {
       setIsVerifyingReceipt(true);
-      const response = await fetch(`/api/admin/payments/${paymentId}/verify-receipt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verified: true }),
-      });
+
+      const response = await fetch(
+        `/api/admin/payments/${paymentId}/verify-receipt`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            verified: true,
+            verifiedBy: "Admin",
+          }),
+        }
+      );
+
+      const data = await response.json();
 
       if (response.ok) {
         await fetchPaymentData();
-        alert("Receipt verified successfully!");
+
+        if (selectedReceipt?.id === paymentId) {
+          setSelectedReceipt(null);
+        }
+        if (selectedPayment?.id === paymentId) {
+          setSelectedPayment(null);
+        }
+
+        const payment = payments.find(p => p.id === paymentId);
+        if (payment) {
+          sendEmailNotification(payment, true);
+        }
+        
+        alert("Receipt verified! Email notification opened.");
+      } else {
+        throw new Error(data.error || "Failed to verify receipt");
       }
     } catch (err) {
-      alert("Failed to verify receipt");
+      console.error("Error verifying receipt:", err);
+      alert(err instanceof Error ? err.message : "Failed to verify receipt");
     } finally {
       setIsVerifyingReceipt(false);
     }
@@ -281,25 +395,49 @@ const PaymentTracking: React.FC = () => {
 
   const handleRejectReceipt = async (paymentId: number) => {
     const reason = prompt("Please provide reason for rejecting this receipt:");
-    if (!reason) return;
+    if (!reason || reason.trim() === "") {
+      alert("Please provide a reason for rejection");
+      return;
+    }
 
     try {
       setIsVerifyingReceipt(true);
-      const response = await fetch(`/api/admin/payments/${paymentId}/reject-receipt`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          verified: false,
-          rejectionReason: reason,
-        }),
-      });
+
+      const response = await fetch(
+        `/api/admin/payments/${paymentId}/reject-receipt`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rejectionReason: reason.trim(),
+          }),
+        }
+      );
+
+      const data = await response.json();
 
       if (response.ok) {
         await fetchPaymentData();
-        alert("Receipt rejected successfully!");
+
+        if (selectedReceipt?.id === paymentId) {
+          setSelectedReceipt(null);
+        }
+        if (selectedPayment?.id === paymentId) {
+          setSelectedPayment(null);
+        }
+
+        const payment = payments.find(p => p.id === paymentId);
+        if (payment) {
+          sendEmailNotification(payment, false, reason.trim());
+        }
+        
+        alert("Receipt rejected! Email notification opened.");
+      } else {
+        throw new Error(data.error || "Failed to reject receipt");
       }
     } catch (err) {
-      alert("Failed to reject receipt");
+      console.error("Error rejecting receipt:", err);
+      alert(err instanceof Error ? err.message : "Failed to reject receipt");
     } finally {
       setIsVerifyingReceipt(false);
     }
@@ -324,7 +462,14 @@ const PaymentTracking: React.FC = () => {
   };
 
   // Components
-  const StatCard = ({ title, value, icon, color, subtitle, isLoading }: any) => (
+  const StatCard = ({
+    title,
+    value,
+    icon,
+    color,
+    subtitle,
+    isLoading,
+  }: any) => (
     <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl p-5 border border-gray-700 hover:border-amber-500/30 transition-all duration-300">
       <div className="flex items-center justify-between">
         <div>
@@ -334,9 +479,13 @@ const PaymentTracking: React.FC = () => {
           ) : (
             <p className="text-2xl font-bold text-white mb-1">{value}</p>
           )}
-          {subtitle && <p className="text-amber-400 text-xs font-medium">{subtitle}</p>}
+          {subtitle && (
+            <p className="text-amber-400 text-xs font-medium">{subtitle}</p>
+          )}
         </div>
-        <div className={`text-2xl p-3 rounded-lg bg-gray-700/50 ${color}`}>{icon}</div>
+        <div className={`text-2xl p-3 rounded-lg bg-gray-700/50 ${color}`}>
+          {icon}
+        </div>
       </div>
     </div>
   );
@@ -359,14 +508,17 @@ const PaymentTracking: React.FC = () => {
             </div>
 
             <div className="space-y-6">
-              {/* Payment Summary */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400">Payment Information</h4>
+                  <h4 className="text-lg font-semibold text-amber-400">
+                    Payment Information
+                  </h4>
                   <div className="space-y-3">
                     <div>
                       <p className="text-gray-400 text-sm">Transaction ID</p>
-                      <p className="text-white font-mono">{selectedPayment.transactionId || "N/A"}</p>
+                      <p className="text-white font-mono">
+                        {selectedPayment.transactionId || "N/A"}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Amount</p>
@@ -377,7 +529,9 @@ const PaymentTracking: React.FC = () => {
                     <div>
                       <p className="text-gray-400 text-sm">Payment Method</p>
                       <p className="text-white font-medium flex items-center gap-2">
-                        <span>{getPaymentMethodIcon(selectedPayment.paymentMethod)}</span>
+                        <span>
+                          {getPaymentMethodIcon(selectedPayment.paymentMethod)}
+                        </span>
                         {getPaymentMethodName(selectedPayment.paymentMethod)}
                       </p>
                     </div>
@@ -388,7 +542,9 @@ const PaymentTracking: React.FC = () => {
                           selectedPayment.status
                         )}`}
                       >
-                        <span className="mr-1">{getStatusIcon(selectedPayment.status)}</span>
+                        <span className="mr-1">
+                          {getStatusIcon(selectedPayment.status)}
+                        </span>
                         {selectedPayment.status.toUpperCase()}
                       </span>
                     </div>
@@ -396,36 +552,46 @@ const PaymentTracking: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-lg font-semibold text-amber-400">Customer & Vehicle</h4>
+                  <h4 className="text-lg font-semibold text-amber-400">
+                    Customer Information
+                  </h4>
                   <div className="space-y-3">
                     <div>
                       <p className="text-gray-400 text-sm">Customer</p>
-                      <p className="text-white font-medium">{selectedPayment.customerName}</p>
+                      <p className="text-white font-medium">
+                        {selectedPayment.customerName}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-400 text-sm">Email</p>
+                      <p className="text-blue-400 font-medium flex items-center gap-2">
+                        <Mail className="w-4 h-4" />
+                        {selectedPayment.customerEmail}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Vehicle</p>
-                      <p className="text-white font-medium">{selectedPayment.vehicleModel}</p>
+                      <p className="text-white font-medium">
+                        {selectedPayment.vehicleModel}
+                      </p>
                     </div>
                     <div>
                       <p className="text-gray-400 text-sm">Registration</p>
-                      <p className="text-white font-medium">{selectedPayment.registrationNumber}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400 text-sm">Booking ID</p>
-                      <p className="text-white font-medium">#{selectedPayment.bookingId}</p>
+                      <p className="text-white font-medium">
+                        {selectedPayment.registrationNumber}
+                      </p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Receipt Section */}
               {selectedPayment.uploadedReceipt && (
                 <div className="space-y-4 pt-4 border-t border-gray-800">
                   <h4 className="text-lg font-semibold text-amber-400 flex items-center gap-2">
                     <FileText className="w-5 h-5" />
                     Uploaded Receipt
                   </h4>
-                  
+
                   <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-3">
@@ -437,7 +603,11 @@ const PaymentTracking: React.FC = () => {
                             {selectedPayment.uploadedReceipt.fileName}
                           </p>
                           <p className="text-gray-400 text-sm">
-                            {selectedPayment.uploadedReceipt.fileType} • Uploaded: {formatDateTime(selectedPayment.uploadedReceipt.uploadedAt)}
+                            {selectedPayment.uploadedReceipt.fileType} •
+                            Uploaded:{" "}
+                            {formatDateTime(
+                              selectedPayment.uploadedReceipt.uploadedAt
+                            )}
                           </p>
                         </div>
                       </div>
@@ -478,10 +648,12 @@ const PaymentTracking: React.FC = () => {
                         View Receipt
                       </button>
                       <button
-                        onClick={() => handleDownloadReceipt(
-                          selectedPayment.uploadedReceipt!.url,
-                          selectedPayment.uploadedReceipt!.fileName
-                        )}
+                        onClick={() =>
+                          handleDownloadReceipt(
+                            selectedPayment.uploadedReceipt!.url,
+                            selectedPayment.uploadedReceipt!.fileName
+                          )
+                        }
                         className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-lg font-medium transition-colors border border-gray-700 flex items-center justify-center gap-2"
                       >
                         <Download className="w-4 h-4" />
@@ -489,21 +661,28 @@ const PaymentTracking: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Receipt Management */}
                     {!selectedPayment.uploadedReceipt.verified && (
                       <div className="mt-4 pt-4 border-t border-gray-700">
-                        <h5 className="text-white font-semibold mb-3">Receipt Verification</h5>
+                        <h5 className="text-white font-semibold mb-3">
+                          Receipt Verification
+                        </h5>
                         <div className="flex gap-3">
                           <button
-                            onClick={() => handleVerifyReceipt(selectedPayment.id)}
+                            onClick={() =>
+                              handleVerifyReceipt(selectedPayment.id)
+                            }
                             disabled={isVerifyingReceipt}
                             className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-green-400 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                           >
                             <CheckCircle className="w-4 h-4" />
-                            {isVerifyingReceipt ? "Processing..." : "Verify Receipt"}
+                            {isVerifyingReceipt
+                              ? "Processing..."
+                              : "Verify Receipt"}
                           </button>
                           <button
-                            onClick={() => handleRejectReceipt(selectedPayment.id)}
+                            onClick={() =>
+                              handleRejectReceipt(selectedPayment.id)
+                            }
                             disabled={isVerifyingReceipt}
                             className="flex-1 bg-red-500 hover:bg-red-600 disabled:bg-red-400 text-white py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                           >
@@ -514,11 +693,11 @@ const PaymentTracking: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Rejection Reason */}
                     {selectedPayment.uploadedReceipt.rejectionReason && (
                       <div className="mt-3 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                         <p className="text-red-400 text-sm">
-                          <strong>Rejection Reason:</strong> {selectedPayment.uploadedReceipt.rejectionReason}
+                          <strong>Rejection Reason:</strong>{" "}
+                          {selectedPayment.uploadedReceipt.rejectionReason}
                         </p>
                       </div>
                     )}
@@ -526,30 +705,19 @@ const PaymentTracking: React.FC = () => {
                 </div>
               )}
 
-              {/* No Receipt Notice */}
               {!selectedPayment.uploadedReceipt && (
                 <div className="p-4 bg-gray-800/30 rounded-xl border border-gray-700">
                   <div className="text-center">
                     <div className="text-gray-400 text-4xl mb-3">📄</div>
-                    <p className="text-gray-300">No receipt uploaded for this payment</p>
+                    <p className="text-gray-300">
+                      No receipt uploaded for this payment
+                    </p>
                     <p className="text-gray-400 text-sm mt-1">
                       Customer needs to upload receipt after payment
                     </p>
                   </div>
                 </div>
               )}
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-6 border-t border-gray-800">
-                {selectedPayment.status === "pending" && (
-                  <button className="flex-1 bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold transition-colors">
-                    ✅ Mark as Completed
-                  </button>
-                )}
-                <button className="flex-1 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl font-semibold transition-colors border border-gray-700">
-                  🧾 Generate Invoice
-                </button>
-              </div>
             </div>
           </div>
         </div>
@@ -567,12 +735,12 @@ const PaymentTracking: React.FC = () => {
     return (
       <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
         <div className="bg-gray-900 rounded-2xl border border-amber-500/30 max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-          {/* Header */}
           <div className="p-4 border-b border-gray-800 flex justify-between items-center">
             <div>
               <h3 className="text-xl font-bold text-white">Receipt Viewer</h3>
               <p className="text-gray-400 text-sm">
-                {selectedReceipt.customerName} • {formatDate(selectedReceipt.paymentDate)} •{" "}
+                {selectedReceipt.customerName} •{" "}
+                {formatDate(selectedReceipt.paymentDate)} •{" "}
                 {formatCurrency(selectedReceipt.amount)}
               </p>
             </div>
@@ -584,7 +752,6 @@ const PaymentTracking: React.FC = () => {
             </button>
           </div>
 
-          {/* Toolbar */}
           <div className="p-3 border-b border-gray-800 bg-gray-800/30 flex items-center gap-3">
             <button
               onClick={() => setReceiptZoom(receiptZoom + 0.1)}
@@ -618,7 +785,9 @@ const PaymentTracking: React.FC = () => {
               Print
             </button>
             <button
-              onClick={() => handleDownloadReceipt(receipt.url, receipt.fileName)}
+              onClick={() =>
+                handleDownloadReceipt(receipt.url, receipt.fileName)
+              }
               className="p-2 bg-green-500 hover:bg-green-600 rounded-lg text-white flex items-center gap-2"
             >
               <Download className="w-5 h-5" />
@@ -626,7 +795,6 @@ const PaymentTracking: React.FC = () => {
             </button>
           </div>
 
-          {/* Receipt Content */}
           <div className="flex-1 overflow-auto p-4 bg-gray-800/20">
             <div className="flex justify-center items-center min-h-[400px]">
               {isImage ? (
@@ -652,10 +820,16 @@ const PaymentTracking: React.FC = () => {
               ) : (
                 <div className="text-center p-8">
                   <div className="text-gray-400 text-6xl mb-4">📄</div>
-                  <p className="text-gray-300">Preview not available for this file type</p>
-                  <p className="text-gray-400 text-sm mt-2">File type: {receipt.fileType}</p>
+                  <p className="text-gray-300">
+                    Preview not available for this file type
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2">
+                    File type: {receipt.fileType}
+                  </p>
                   <button
-                    onClick={() => handleDownloadReceipt(receipt.url, receipt.fileName)}
+                    onClick={() =>
+                      handleDownloadReceipt(receipt.url, receipt.fileName)
+                    }
                     className="mt-4 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg"
                   >
                     Download File
@@ -665,17 +839,20 @@ const PaymentTracking: React.FC = () => {
             </div>
           </div>
 
-          {/* Footer */}
           <div className="p-4 border-t border-gray-800 bg-gray-900/50">
             <div className="flex justify-between items-center">
               <div className="text-sm text-gray-400">
                 <p>
-                  Uploaded: {formatDateTime(receipt.uploadedAt)} •{" "}
-                  Status: {receipt.verified ? (
+                  Uploaded: {formatDateTime(receipt.uploadedAt)} • Status:{" "}
+                  {receipt.verified ? (
                     <span className="text-green-400">✅ Verified</span>
                   ) : (
                     <span className="text-yellow-400">⏳ Pending</span>
                   )}
+                </p>
+                <p className="mt-1">
+                  Customer: {selectedReceipt.customerName} • Email:{" "}
+                  {selectedReceipt.customerEmail}
                 </p>
               </div>
               {!receipt.verified && (
@@ -715,7 +892,10 @@ const PaymentTracking: React.FC = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-gray-800/50 rounded-xl p-5 border border-gray-700 animate-pulse">
+            <div
+              key={i}
+              className="bg-gray-800/50 rounded-xl p-5 border border-gray-700 animate-pulse"
+            >
               <div className="h-4 bg-gray-700 rounded w-24 mb-4"></div>
               <div className="h-8 bg-gray-700 rounded w-32 mb-2"></div>
             </div>
@@ -727,11 +907,12 @@ const PaymentTracking: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-white">Payment Tracking</h2>
-          <p className="text-gray-400">Monitor customer payments and receipt verifications</p>
+          <p className="text-gray-400">
+            Monitor customer payments and receipt verifications
+          </p>
         </div>
         <div className="flex gap-3">
           <button
@@ -751,29 +932,29 @@ const PaymentTracking: React.FC = () => {
         </div>
       </div>
 
-      {/* Time Filter */}
       <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <h3 className="text-lg font-semibold text-white">Time Period</h3>
           <div className="flex flex-wrap gap-2">
-            {(["today", "week", "month", "year", "all"] as TimeFilter[]).map((period) => (
-              <button
-                key={period}
-                onClick={() => setTimeFilter(period)}
-                className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                  timeFilter === period
-                    ? "bg-blue-500 text-white"
-                    : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
-                }`}
-              >
-                {period.charAt(0).toUpperCase() + period.slice(1)}
-              </button>
-            ))}
+            {(["today", "week", "month", "year", "all"] as TimeFilter[]).map(
+              (period) => (
+                <button
+                  key={period}
+                  onClick={() => setTimeFilter(period)}
+                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                    timeFilter === period
+                      ? "bg-blue-500 text-white"
+                      : "bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-white"
+                  }`}
+                >
+                  {period.charAt(0).toUpperCase() + period.slice(1)}
+                </button>
+              )
+            )}
           </div>
         </div>
       </div>
 
-      {/* Stats Overview */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         <StatCard
           title="Total Revenue"
@@ -833,16 +1014,14 @@ const PaymentTracking: React.FC = () => {
         />
       </div>
 
-      {/* Search and Filters */}
       <div className="bg-gray-800/50 rounded-xl p-4 border border-gray-700">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Search */}
           <div className="flex-1">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input
                 type="text"
-                placeholder="Search payments by customer, vehicle, or transaction ID..."
+                placeholder="Search payments by customer, vehicle, email, or transaction ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-12 pr-4 py-3 bg-gray-900 border border-gray-700 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-amber-500"
@@ -850,7 +1029,6 @@ const PaymentTracking: React.FC = () => {
             </div>
           </div>
 
-          {/* Status Filters */}
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setFilter("all")}
@@ -916,20 +1094,35 @@ const PaymentTracking: React.FC = () => {
         </div>
       </div>
 
-      {/* Payments Table */}
       <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-700/50">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-900/80">
               <tr className="border-b border-gray-700/50">
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Transaction</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Customer & Vehicle</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Amount</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Method</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Status</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Receipt</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Date</th>
-                <th className="py-4 px-6 text-left text-gray-400 font-medium">Actions</th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Transaction
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Customer & Vehicle
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Amount
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Method
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Status
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Receipt
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Date
+                </th>
+                <th className="py-4 px-6 text-left text-gray-400 font-medium">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -963,7 +1156,13 @@ const PaymentTracking: React.FC = () => {
                     </td>
                     <td className="py-4 px-6">
                       <div>
-                        <p className="text-white font-medium">{payment.customerName}</p>
+                        <p className="text-white font-medium">
+                          {payment.customerName}
+                        </p>
+                        <p className="text-blue-400 text-sm flex items-center gap-1">
+                          <Mail className="w-3 h-3" />
+                          {payment.customerEmail}
+                        </p>
                         <p className="text-gray-400 text-sm">
                           {payment.vehicleModel}
                         </p>
@@ -993,7 +1192,9 @@ const PaymentTracking: React.FC = () => {
                           payment.status
                         )}`}
                       >
-                        <span className="mr-1">{getStatusIcon(payment.status)}</span>
+                        <span className="mr-1">
+                          {getStatusIcon(payment.status)}
+                        </span>
                         {payment.status.toUpperCase()}
                       </span>
                     </td>
@@ -1006,11 +1207,15 @@ const PaymentTracking: React.FC = () => {
                             <Clock className="w-5 h-5 text-yellow-400" />
                           )}
                           <span className="text-sm text-gray-300">
-                            {payment.uploadedReceipt.verified ? "Verified" : "Pending"}
+                            {payment.uploadedReceipt.verified
+                              ? "Verified"
+                              : "Pending"}
                           </span>
                         </div>
                       ) : (
-                        <span className="text-gray-500 text-sm">No receipt</span>
+                        <span className="text-gray-500 text-sm">
+                          No receipt
+                        </span>
                       )}
                     </td>
                     <td className="py-4 px-6">
@@ -1019,10 +1224,13 @@ const PaymentTracking: React.FC = () => {
                           {formatDate(payment.paymentDate)}
                         </p>
                         <p className="text-gray-400 text-xs">
-                          {new Date(payment.paymentDate).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
+                          {new Date(payment.paymentDate).toLocaleTimeString(
+                            [],
+                            {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            }
+                          )}
                         </p>
                       </div>
                     </td>
@@ -1053,25 +1261,30 @@ const PaymentTracking: React.FC = () => {
           </table>
         </div>
 
-        {/* Footer */}
         {filteredPayments.length > 0 && (
           <div className="p-4 border-t border-gray-700/50 flex justify-between items-center">
             <p className="text-gray-400 text-sm">
-              Showing <span className="text-white font-medium">{filteredPayments.length}</span>{" "}
-              of <span className="text-white font-medium">{payments.length}</span> payments
+              Showing{" "}
+              <span className="text-white font-medium">
+                {filteredPayments.length}
+              </span>{" "}
+              of{" "}
+              <span className="text-white font-medium">{payments.length}</span>{" "}
+              payments
             </p>
             <div className="text-sm text-gray-400">
-              Total: {formatCurrency(filteredPayments.reduce((sum, p) => sum + p.amount, 0))}
+              Total:{" "}
+              {formatCurrency(
+                filteredPayments.reduce((sum, p) => sum + p.amount, 0)
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {/* Modals */}
       <PaymentDetailsModal />
       <ReceiptViewerModal />
 
-      {/* Error Display */}
       {error && (
         <div className="fixed bottom-4 right-4 p-4 bg-red-500/20 border border-red-500/30 rounded-xl backdrop-blur-sm">
           <div className="flex items-center gap-3">

@@ -583,14 +583,12 @@ const PaymentSystem: React.FC<PaymentSystemProps> = ({
               <div className="bg-white p-4 rounded-xl">
                 <div className="w-48 h-48 bg-gray-200 rounded-lg flex items-center justify-center">
                   {/* In real app, generate actual QR code */}
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">📱</div>
-                    <p className="text-sm text-gray-600 font-mono">
-                      DuitNow QR
-                    </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Scan with your bank app
-                    </p>
+                  <div className="bg-white p-1 rounded-xl">
+                    <img
+                      src="/uploads/receipts/qr-code.jpeg"
+                      alt="DuitNow QR Code"
+                      className="w-48 h-48 rounded-lg object-contain"
+                    />
                   </div>
                 </div>
               </div>

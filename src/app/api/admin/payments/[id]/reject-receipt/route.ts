@@ -20,30 +20,28 @@ export async function POST(
       );
     }
 
-    // Get the admin info from session/token (you need to implement this)
-    // For now, using a hardcoded admin
-    const adminId = 1; // This should come from your auth session
-    const verifiedBy = "Admin"; // This should come from your auth
-
     const body = await request.json();
-    const { verified } = body;
+    const { rejectionReason } = body;
 
-    if (typeof verified !== 'boolean') {
+    if (!rejectionReason || typeof rejectionReason !== 'string') {
       return NextResponse.json(
-        { error: 'Verified status is required' },
+        { error: 'Rejection reason is required' },
         { status: 400 }
       );
     }
 
-    // Update payment receipt verification status
+    // Get admin info (from auth session)
+    const verifiedBy = "Admin"; // This should come from your auth
+
+    // Update payment with rejection
     const updatedPayment = await prisma.payment.update({
       where: { id: paymentId },
       data: {
-        receiptVerified: verified,
-        verifiedBy: verified ? verifiedBy : null,
-        verifiedAt: verified ? new Date() : null,
-        status: verified ? 'completed' : 'pending',
-        rejectionReason: verified ? null : 'Receipt verification failed',
+        receiptVerified: false,
+        verifiedBy: null,
+        verifiedAt: null,
+        rejectionReason,
+        status: 'failed',
       },
       include: {
         customer: {
@@ -61,35 +59,28 @@ export async function POST(
       }
     });
 
-    // Also update the booking payment status
+    // Update booking status
     if (updatedPayment.bookingId) {
       await prisma.booking.update({
         where: { id: updatedPayment.bookingId },
         data: {
-          paymentStatus: verified ? 'paid' : 'pending',
-          amountPaid: verified ? updatedPayment.amount : 0,
-          balanceDue: 0, // Assuming full payment
+          paymentStatus: 'pending',
+          balanceDue: updatedPayment.amount,
         }
       });
     }
 
-    // Send notification to customer (you can implement email/notification system)
-    if (verified) {
-      // Send receipt verified notification
-      console.log(`Receipt verified for payment ${paymentId}`);
-    } else {
-      // Send receipt rejected notification
-      console.log(`Receipt rejected for payment ${paymentId}`);
-    }
+    // Send rejection notification to customer
+    console.log(`Receipt rejected for payment ${paymentId}: ${rejectionReason}`);
 
     return NextResponse.json({
       success: true,
-      message: verified ? 'Receipt verified successfully' : 'Receipt rejected',
+      message: 'Receipt rejected successfully',
       payment: updatedPayment
     });
 
   } catch (error) {
-    console.error('Error verifying receipt:', error);
+    console.error('Error rejecting receipt:', error);
     
     if (error.code === 'P2025') {
       return NextResponse.json(
@@ -99,7 +90,7 @@ export async function POST(
     }
 
     return NextResponse.json(
-      { error: 'Failed to verify receipt' },
+      { error: 'Failed to reject receipt' },
       { status: 500 }
     );
   }
